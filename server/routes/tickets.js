@@ -138,26 +138,43 @@ router.delete('/:id', auth, isHR, async (req, res) => {
 // Get a single ticket
 router.get('/:id', auth, async (req, res) => {
   try {
-    console.log('Fetching single ticket:', req.params.id);
+    const ticketId = req.params.id;
+    const requestingUserId = req.user._id; // Use _id for clarity
+    const requestingUserRole = req.user.role;
+
+    console.log(`Fetching single ticket: ${ticketId} for user ${requestingUserId} (Role: ${requestingUserRole})`);
     
-    const ticket = await Ticket.findById(req.params.id)
-      .populate('employee', 'name email')
+    const ticket = await Ticket.findById(ticketId)
+      .populate('employee', 'name email') // Ensure employee field name is correct in Ticket model
       .populate('respondedBy', 'name email');
 
     if (!ticket) {
+      console.log(`Ticket not found: ${ticketId}`);
       return res.status(404).json({ message: 'Ticket not found' });
     }
+    
+    // Ensure employee is populated and has an _id
+    if (!ticket.employee || !ticket.employee._id) {
+        console.error(`Ticket ${ticketId} has missing or unpopulated employee reference.`);
+        return res.status(500).json({ message: 'Ticket data incomplete.' }); 
+    }
+
+    const ticketOwnerId = ticket.employee._id;
+
+    console.log(`Permission Check: UserRole=${requestingUserRole}, ReqUserID=${requestingUserId.toString()}, TicketOwnerID=${ticketOwnerId.toString()}`);
 
     // Verify the user has permission to view this ticket
-    if (req.user.role !== 'hr' && ticket.employee._id.toString() !== req.user.id) {
+    // Allow if user is HR OR if the user ID matches the ticket's employee ID
+    if (requestingUserRole !== 'hr' && ticketOwnerId.toString() !== requestingUserId.toString()) {
+      console.log(`Authorization failed for user ${requestingUserId} on ticket ${ticketId} owned by ${ticketOwnerId}`);
       return res.status(403).json({ message: 'Not authorized to view this ticket' });
     }
 
-    console.log('Found ticket:', ticket);
+    console.log(`Authorization successful. Found ticket: ${ticketId}`);
     res.json(ticket);
   } catch (err) {
-    console.error('Error fetching ticket:', err);
-    res.status(500).json({ message: err.message });
+    console.error(`Error fetching ticket ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Server error while fetching ticket' });
   }
 });
 

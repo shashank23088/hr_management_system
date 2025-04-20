@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const Performance = require('../models/Performance')
+const Employee = require('../models/Employee')
 const { auth, isHR } = require('../middleware/auth')
 
 // @route   GET api/performance
@@ -22,26 +23,50 @@ router.get('/', auth, isHR, async (req, res) => {
   }
 })
 
-// @route   GET api/performance/employee/:employeeId
-// @desc    Get performance records for a specific employee
+// @route   GET api/performance/employee/:userId
+// @desc    Get performance records for the logged-in employee OR a specific one for HR
 // @access  Private
-router.get('/employee/:employeeId', auth, async (req, res) => {
+router.get('/employee/:userId', auth, async (req, res) => {
   try {
-    // Only allow HR or the employee themselves to access their records
-    if (req.user.role?.toLowerCase() !== 'hr' && req.user.id !== req.params.employeeId) {
-      return res.status(403).json({ message: 'Access denied' })
-    }
+    const requestedUserId = req.params.userId;
+    const loggedInUserId = req.user.id?.toString();
+    const loggedInUserRole = req.user.role?.toLowerCase();
 
-    const performances = await Performance.find({ employee: req.params.employeeId })
+    console.log(`Performance Route: GET /employee/${requestedUserId}. User: ${loggedInUserId}, Role: ${loggedInUserRole}`);
+
+    // Permission Check: Ensure user is HR or requesting their own data
+    console.log(`Performance Route: Permission Check -> Role: ${loggedInUserRole}, LoggedInID (string): ${loggedInUserId}, RequestedID (string): ${requestedUserId}`);
+    if (loggedInUserRole !== 'hr' && loggedInUserId !== requestedUserId) {
+      console.log(`Performance Route: Access DENIED.`);
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    console.log(`Performance Route: Access GRANTED.`);
+
+    // Find the Employee record based on the User ID
+    const employeeRecord = await Employee.findOne({ user: requestedUserId });
+
+    if (!employeeRecord) {
+        console.log(`Performance Route: No Employee record found for User ID: ${requestedUserId}`);
+        // Return empty array as no employee means no reviews for them
+        return res.json([]); 
+    }
+    
+    console.log(`Performance Route: Found Employee Record ID: ${employeeRecord._id} for User ID: ${requestedUserId}`);
+
+    // Now find Performance reviews using the Employee Record ID
+    const performances = await Performance.find({ employee: employeeRecord._id })
+      .populate('employee', 'name email') // Keep populating Employee here, as that's what the model refs
       .populate('team', 'name')
       .populate('task', 'title')
-      .populate('ratedBy', 'name email')
-      .sort({ createdAt: -1 })
+      .populate('ratedBy', 'name email') // Assuming ratedBy also refs Employee model
+      .sort({ createdAt: -1 });
     
-    res.json(performances)
+    console.log(`Performance Route: Found ${performances.length} reviews for Employee ID: ${employeeRecord._id}`);
+    res.json(performances);
+
   } catch (err) {
-    console.error('Error fetching employee performance records:', err)
-    res.status(500).json({ message: 'Server Error' })
+    console.error('Error fetching employee performance records:', err);
+    res.status(500).json({ message: 'Server Error' });
   }
 })
 

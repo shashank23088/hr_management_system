@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../utils/axios';
 import { toast } from 'react-toastify';
-import { FaComment, FaTrash } from 'react-icons/fa';
-import Modal from '../../components/Modal';
+import { FaComment, FaCheck, FaTimes } from 'react-icons/fa';
 import { formatDate } from '../../utils/dateUtils';
 
 const Leaves = () => {
@@ -10,11 +9,10 @@ const Leaves = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [approvalModal, setApprovalModal] = useState({ show: false, leave: null });
-  const [approvalNotes, setApprovalNotes] = useState('');
   const [selectedLeave, setSelectedLeave] = useState(null);
-  const [statusModal, setStatusModal] = useState(false);
-  const [commentModal, setCommentModal] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [approvalNotes, setApprovalNotes] = useState('');
   const [newComment, setNewComment] = useState('');
 
   useEffect(() => {
@@ -35,7 +33,7 @@ const Leaves = () => {
 
   const handleApproval = async (status) => {
     try {
-      const response = await api.put(`/api/leaves/${approvalModal.leave._id}/status`, {
+      const response = await api.put(`/api/leaves/${selectedLeave._id}/status`, {
         status,
         approvalNotes
       });
@@ -44,22 +42,13 @@ const Leaves = () => {
         leave._id === response.data._id ? response.data : leave
       ));
 
-      setApprovalModal({ show: false, leave: null });
+      setShowApprovalModal(false);
+      setSelectedLeave(null);
       setApprovalNotes('');
       toast.success(`Leave request ${status}`);
     } catch (err) {
       console.error('Failed to update leave status:', err);
       toast.error(err.response?.data?.message || 'Failed to update leave status');
-    }
-  };
-
-  const handleViewComments = async (leave) => {
-    try {
-      const response = await api.get(`/api/leaves/${leave._id}`);
-      setSelectedLeave(response.data);
-      setCommentModal(true);
-    } catch (error) {
-      toast.error('Error fetching leave details');
     }
   };
 
@@ -78,34 +67,8 @@ const Leaves = () => {
       setSelectedLeave(response.data);
       setNewComment('');
       toast.success('Comment added successfully');
-    } catch (error) {
-      toast.error('Error adding comment');
-    }
-  };
-
-  const handleDeleteComment = async (commentId) => {
-    try {
-      const response = await api.delete(`/api/leaves/${selectedLeave._id}/comments/${commentId}`);
-      
-      setLeaves(leaves.map(leave => 
-        leave._id === response.data._id ? response.data : leave
-      ));
-      setSelectedLeave(response.data);
-      toast.success('Comment deleted successfully');
-    } catch (error) {
-      toast.error('Error deleting comment');
-    }
-  };
-
-  const handleDeleteLeave = async (leaveId) => {
-    if (!window.confirm('Are you sure you want to delete this leave request?')) return;
-
-    try {
-      await api.delete(`/api/leaves/${leaveId}`);
-      setLeaves(leaves.filter(leave => leave._id !== leaveId));
-      toast.success('Leave request deleted successfully');
-    } catch (error) {
-      toast.error('Error deleting leave request');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add comment');
     }
   };
 
@@ -154,7 +117,6 @@ const Leaves = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Comments</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
@@ -190,32 +152,27 @@ const Leaves = () => {
                       {leave.status.toUpperCase()}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <button
-                      onClick={() => handleViewComments(leave)}
-                      className="text-indigo-600 hover:text-indigo-900 flex items-center"
-                    >
-                      <FaComment className="mr-1" />
-                      {leave.comments?.length || 0}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                     {leave.status === 'pending' && (
                       <button
                         onClick={() => {
                           setSelectedLeave(leave);
-                          setStatusModal(true);
+                          setShowApprovalModal(true);
                         }}
-                        className="text-indigo-600 hover:text-indigo-900"
+                        className="text-blue-600 hover:text-blue-900"
                       >
-                        Update Status
+                        Review
                       </button>
                     )}
                     <button
-                      onClick={() => handleDeleteLeave(leave._id)}
-                      className="text-red-600 hover:text-red-900"
+                      onClick={() => {
+                        setSelectedLeave(leave);
+                        setShowCommentModal(true);
+                      }}
+                      className="text-blue-600 hover:text-blue-700 flex items-center"
                     >
-                      Delete
+                      <FaComment className="mr-1" />
+                      {leave.comments?.length || 0}
                     </button>
                   </td>
                 </tr>
@@ -226,7 +183,7 @@ const Leaves = () => {
       </div>
 
       {/* Approval Modal */}
-      {approvalModal.show && (
+      {showApprovalModal && selectedLeave && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 max-w-md w-full">
             <h2 className="text-xl font-bold mb-4">Review Leave Request</h2>
@@ -240,12 +197,13 @@ const Leaves = () => {
                   onChange={(e) => setApprovalNotes(e.target.value)}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
                   rows="3"
-                  placeholder="Add any notes about your decision (optional)"
+                  placeholder="Add approval/rejection notes..."
+                  required
                 />
               </div>
               <div className="flex justify-end space-x-2">
                 <button
-                  onClick={() => setApprovalModal({ show: false, leave: null })}
+                  onClick={() => setShowApprovalModal(false)}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                 >
                   Cancel
@@ -254,12 +212,14 @@ const Leaves = () => {
                   onClick={() => handleApproval('rejected')}
                   className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
                 >
+                  <FaTimes className="inline mr-1" />
                   Reject
                 </button>
                 <button
                   onClick={() => handleApproval('approved')}
                   className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
                 >
+                  <FaCheck className="inline mr-1" />
                   Approve
                 </button>
               </div>
@@ -268,95 +228,60 @@ const Leaves = () => {
         </div>
       )}
 
-      {/* Status Update Modal */}
-      <Modal
-        isOpen={statusModal}
-        onClose={() => {
-          setStatusModal(false);
-          setApprovalNotes('');
-        }}
-        title="Update Leave Status"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Notes</label>
-            <textarea
-              value={approvalNotes}
-              onChange={(e) => setApprovalNotes(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              rows="3"
-            />
-          </div>
-          <div className="flex justify-end space-x-2">
-            <button
-              onClick={() => handleApproval('approved')}
-              className="inline-flex justify-center rounded-md border border-transparent bg-green-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-            >
-              Approve
-            </button>
-            <button
-              onClick={() => handleApproval('rejected')}
-              className="inline-flex justify-center rounded-md border border-transparent bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-            >
-              Reject
-            </button>
-          </div>
-        </div>
-      </Modal>
-
       {/* Comments Modal */}
-      <Modal
-        isOpen={commentModal}
-        onClose={() => {
-          setCommentModal(false);
-          setNewComment('');
-        }}
-        title="Leave Comments"
-      >
-        <div className="space-y-4">
-          {/* Add Comment Form */}
-          <form onSubmit={handleAddComment} className="space-y-2">
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Add a comment..."
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              rows="2"
-            />
-            <button
-              type="submit"
-              className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-            >
-              Add Comment
-            </button>
-          </form>
-
-          {/* Comments List */}
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            {selectedLeave?.comments?.map(comment => (
-              <div key={comment._id} className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm text-gray-600">
-                      By: {comment.user?.name || comment.user?.email}
-                    </p>
-                    <p className="mt-1">{comment.text}</p>
-                    <p className="text-xs text-gray-500 mt-1">
+      {showCommentModal && selectedLeave && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">Comments</h2>
+            <div className="space-y-4">
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {selectedLeave.comments?.map((comment) => (
+                  <div key={comment._id} className="bg-gray-50 p-3 rounded-lg">
+                    <div className="text-sm font-medium text-gray-900">
+                      {comment.user?.name || comment.user?.email || 'Unknown User'}
+                    </div>
+                    <div className="text-sm text-gray-600">{comment.text}</div>
+                    <div className="text-xs text-gray-400">
                       {new Date(comment.createdAt).toLocaleString()}
-                    </p>
+                    </div>
                   </div>
+                ))}
+                {!selectedLeave.comments?.length && (
+                  <p className="text-gray-500 text-center">No comments yet</p>
+                )}
+              </div>
+              <form onSubmit={handleAddComment} className="space-y-2">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
+                  rows="2"
+                  placeholder="Add a comment..."
+                  required
+                />
+                <div className="flex justify-end space-x-2">
                   <button
-                    onClick={() => handleDeleteComment(comment._id)}
-                    className="text-red-600 hover:text-red-900"
+                    type="button"
+                    onClick={() => {
+                      setShowCommentModal(false);
+                      setNewComment('');
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                   >
-                    <FaTrash />
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  >
+                    Add Comment
                   </button>
                 </div>
-              </div>
-            ))}
+              </form>
+            </div>
           </div>
         </div>
-      </Modal>
+      )}
     </div>
   );
 };

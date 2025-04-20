@@ -9,13 +9,16 @@ const { auth, isHR } = require('../middleware/auth')
 router.get('/', [auth, isHR], async (req, res) => {
   try {
     const leaves = await Leave.find()
-      .populate('employee', 'name email')
-      .populate('approvedBy', 'name email')
-      .populate('comments.user', 'name email')
-    res.json(leaves)
+      // Restore field selection for efficiency
+      .populate({ path: 'employee', select: 'name email' }) 
+      .populate({ path: 'approvedBy', select: 'name email' })
+      .populate({ path: 'comments.user', select: 'name email' })
+      .sort({ createdAt: -1 });
+
+    res.json(leaves);
   } catch (err) {
-    console.error('Error fetching leaves:', err.message)
-    res.status(500).send('Server Error')
+    console.error('Error fetching leaves:', err.message);
+    res.status(500).send('Server Error');
   }
 })
 
@@ -25,18 +28,31 @@ router.get('/', [auth, isHR], async (req, res) => {
 router.get('/employee/:employeeId', auth, async (req, res) => {
   try {
     // Check if user is HR or the employee themselves
-    if (!req.user.isHR && req.user._id.toString() !== req.params.employeeId) {
-      return res.status(403).json({ message: 'Not authorized to view these leaves' })
+    const requestedId = req.params.employeeId;
+    const userId = req.user._id.toString();
+
+    if (!req.user.isHR && userId !== requestedId) {
+      return res.status(403).json({ message: 'Not authorized to view these leaves' });
     }
 
-    const leaves = await Leave.find({ employee: req.params.employeeId })
-      .populate('employee', 'name email')
-      .populate('approvedBy', 'name email')
-      .populate('comments.user', 'name email')
-    res.json(leaves)
+    console.log('Fetching leaves for employee:', requestedId);
+    
+    const leaves = await Leave.find({ 
+      $or: [
+        { employee: requestedId },
+        { 'employee._id': requestedId }
+      ]
+    })
+    .populate('employee', 'name email')
+    .populate('approvedBy', 'name email')
+    .populate('comments.user', 'name email')
+    .sort({ createdAt: -1 });
+
+    console.log('Found leaves:', leaves.length);
+    res.json(leaves);
   } catch (err) {
-    console.error('Error fetching employee leaves:', err.message)
-    res.status(500).send('Server Error')
+    console.error('Error fetching employee leaves:', err);
+    res.status(500).json({ message: 'Server Error' });
   }
 })
 
@@ -96,100 +112,103 @@ router.post('/', auth, async (req, res) => {
 // @access  Private/HR
 router.put('/:id/status', [auth, isHR], async (req, res) => {
   try {
-    const { status, approvalNotes } = req.body
+    const { status, approvalNotes } = req.body;
 
-    const leave = await Leave.findById(req.params.id)
+    const leave = await Leave.findById(req.params.id);
     if (!leave) {
-      return res.status(404).json({ message: 'Leave not found' })
+      return res.status(404).json({ message: 'Leave not found' });
     }
 
-    leave.status = status
-    leave.approvedBy = req.user.id
-    leave.approvalDate = Date.now()
-    leave.approvalNotes = approvalNotes
+    leave.status = status;
+    leave.approvedBy = req.user.id;
+    leave.approvalDate = Date.now();
+    leave.approvalNotes = approvalNotes;
 
-    const updatedLeave = await leave.save()
-    await updatedLeave
-      .populate('employee', 'name email')
-      .populate('approvedBy', 'name email')
-      .populate('comments.user', 'name email')
-      .execPopulate()
+    const savedLeave = await leave.save(); // Save first
 
-    res.json(updatedLeave)
+    // Re-fetch with population
+    const populatedLeave = await Leave.findById(savedLeave._id)
+        .populate('employee', 'name email')
+        .populate('approvedBy', 'name email')
+        .populate('comments.user', 'name email');
+
+    res.json(populatedLeave); // Send populated document
   } catch (err) {
-    console.error('Error updating leave status:', err.message)
-    res.status(400).json({ message: err.message })
+    console.error('Error updating leave status:', err.message);
+    res.status(400).json({ message: err.message });
   }
-})
+});
 
 // @route   POST api/leaves/:id/comments
 // @desc    Add a comment to a leave request
 // @access  Private
 router.post('/:id/comments', auth, async (req, res) => {
   try {
-    const leave = await Leave.findById(req.params.id)
+    const leave = await Leave.findById(req.params.id);
     if (!leave) {
-      return res.status(404).json({ message: 'Leave not found' })
+      return res.status(404).json({ message: 'Leave not found' });
     }
 
-    // Check if user is HR or the employee themselves
+    // Check authorization
     if (!req.user.isHR && req.user._id.toString() !== leave.employee.toString()) {
-      return res.status(403).json({ message: 'Not authorized to comment on this leave' })
+      return res.status(403).json({ message: 'Not authorized to comment on this leave' });
     }
 
     leave.comments.push({
       text: req.body.text,
       user: req.user._id
-    })
+    });
 
-    const updatedLeave = await leave.save()
-    await updatedLeave
-      .populate('employee', 'name email')
-      .populate('approvedBy', 'name email')
-      .populate('comments.user', 'name email')
-      .execPopulate()
+    const savedLeave = await leave.save(); // Save first
 
-    res.json(updatedLeave)
+    // Re-fetch with population
+    const populatedLeave = await Leave.findById(savedLeave._id)
+        .populate('employee', 'name email')
+        .populate('approvedBy', 'name email')
+        .populate('comments.user', 'name email');
+
+    res.json(populatedLeave); // Send populated document
   } catch (err) {
-    console.error('Error adding comment to leave:', err.message)
-    res.status(400).json({ message: err.message })
+    console.error('Error adding comment to leave:', err.message);
+    res.status(400).json({ message: err.message });
   }
-})
+});
 
 // @route   DELETE api/leaves/:id/comments/:commentId
 // @desc    Delete a comment from a leave request
 // @access  Private
 router.delete('/:id/comments/:commentId', auth, async (req, res) => {
   try {
-    const leave = await Leave.findById(req.params.id)
+    const leave = await Leave.findById(req.params.id);
     if (!leave) {
-      return res.status(404).json({ message: 'Leave not found' })
+      return res.status(404).json({ message: 'Leave not found' });
     }
 
-    const comment = leave.comments.id(req.params.commentId)
+    const comment = leave.comments.id(req.params.commentId);
     if (!comment) {
-      return res.status(404).json({ message: 'Comment not found' })
+      return res.status(404).json({ message: 'Comment not found' });
     }
 
-    // Check if user is HR or the comment owner
+    // Check authorization
     if (!req.user.isHR && req.user._id.toString() !== comment.user.toString()) {
-      return res.status(403).json({ message: 'Not authorized to delete this comment' })
+      return res.status(403).json({ message: 'Not authorized to delete this comment' });
     }
 
-    comment.remove()
-    const updatedLeave = await leave.save()
-    await updatedLeave
-      .populate('employee', 'name email')
-      .populate('approvedBy', 'name email')
-      .populate('comments.user', 'name email')
-      .execPopulate()
+    comment.remove(); // Use Mongoose subdocument remove
+    const savedLeave = await leave.save(); // Save the parent document
 
-    res.json(updatedLeave)
+    // Re-fetch with population
+    const populatedLeave = await Leave.findById(savedLeave._id)
+        .populate('employee', 'name email')
+        .populate('approvedBy', 'name email')
+        .populate('comments.user', 'name email');
+
+    res.json(populatedLeave); // Send populated document
   } catch (err) {
-    console.error('Error deleting comment from leave:', err.message)
-    res.status(400).json({ message: err.message })
+    console.error('Error deleting comment from leave:', err.message);
+    res.status(400).json({ message: err.message });
   }
-})
+});
 
 // @route   DELETE api/leaves/:id
 // @desc    Delete a leave request (only if pending)

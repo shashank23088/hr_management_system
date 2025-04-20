@@ -8,6 +8,7 @@ import Salary from './employee/Salary';
 import Tasks from './employee/Tasks';
 import Tickets from './employee/Tickets';
 import Leaves from './employee/Leaves';
+import Performance from './employee/Performance';
 
 const EmployeeDashboard = () => {
   const dispatch = useDispatch();
@@ -67,6 +68,12 @@ const EmployeeDashboard = () => {
           >
             Leaves
           </Link>
+          <Link
+            to="performance"
+            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors duration-200 ${isActiveRoute('performance')}`}
+          >
+            Performance
+          </Link>
           <div className="px-4 mt-4 border-t border-gray-200 pt-4">
             <button
               onClick={handleLogout}
@@ -88,6 +95,7 @@ const EmployeeDashboard = () => {
             <Route path="tasks" element={<Tasks />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="leaves" element={<Leaves />} />
+            <Route path="performance" element={<Performance />} />
             <Route index element={<Profile />} />
             <Route path="*" element={<Navigate to="profile" replace />} />
           </Routes>

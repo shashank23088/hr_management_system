@@ -9,6 +9,7 @@ import Attendance from './hr/Attendance';
 import Tasks from './hr/Tasks';
 import Tickets from './hr/Tickets';
 import Performance from './hr/Performance';
+import Leaves from './hr/Leaves';
 
 const HRDashboard = () => {
   const dispatch = useDispatch();
@@ -52,6 +53,12 @@ const HRDashboard = () => {
             Attendance
           </Link>
           <Link
+            to="/hr/leaves"
+            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
+          >
+            Leaves
+          </Link>
+          <Link
             to="/hr/tasks"
             className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
           >
@@ -85,6 +92,7 @@ const HRDashboard = () => {
           <Route path="/teams" element={<Teams />} />
           <Route path="/salary" element={<Salary />} />
           <Route path="/attendance" element={<Attendance />} />
+          <Route path="/leaves" element={<Leaves />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/performance" element={<Performance />} />

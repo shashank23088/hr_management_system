@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import api from '../../utils/axios'
 import { toast } from 'react-toastify'
+import { FaComment } from 'react-icons/fa'
 
 const Leaves = () => {
   const { user } = useSelector((state) => state.auth)
@@ -15,21 +16,38 @@ const Leaves = () => {
     type: 'vacation',
     reason: ''
   })
+  const [showCommentModal, setShowCommentModal] = useState(false)
+  const [selectedLeave, setSelectedLeave] = useState(null)
+  const [newComment, setNewComment] = useState('')
 
   useEffect(() => {
     fetchLeaves()
   }, [user])
 
   const fetchLeaves = async () => {
-    if (!user || !user.employeeId) {
+    if (!user) {
       setError('User data not available')
       setLoading(false)
       return
     }
 
+    // Get the correct employee ID (either user.id or user._id)
+    const employeeId = user._id || user.id
+    if (!employeeId) {
+      console.error('User object:', user)
+      setError('Employee ID not found in user data')
+      setLoading(false)
+      return
+    }
+
     try {
-      console.log('Fetching leaves for employee ID:', user.employeeId)
-      const response = await api.get(`/api/leaves/employee/${user.employeeId}`)
+      console.log('User data:', user)
+      console.log('Fetching leaves for employee ID:', employeeId)
+      const response = await api.get(`/api/leaves/employee/${employeeId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
       console.log('Leaves response:', response.data)
       setLeaves(Array.isArray(response.data) ? response.data : [])
       setLoading(false)
@@ -43,13 +61,24 @@ const Leaves = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    if (!user || !user.employeeId) {
+    if (!user) {
       setError('User data not available')
+      return
+    }
+
+    // Get the correct employee ID (either user.id or user._id)
+    const employeeId = user._id || user.id
+    if (!employeeId) {
+      console.error('User object:', user)
+      setError('Employee ID not found in user data')
       return
     }
     
     try {
-      const response = await api.post('/api/leaves', formData)
+      const response = await api.post('/api/leaves', {
+        ...formData,
+        employee: employeeId
+      })
       setLeaves([response.data, ...leaves])
       setShowModal(false)
       setFormData({
@@ -88,6 +117,26 @@ const Leaves = () => {
         return 'bg-yellow-100 text-yellow-800'
     }
   }
+
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    try {
+      const response = await api.post(`/api/leaves/${selectedLeave._id}/comments`, {
+        text: newComment
+      });
+
+      setLeaves(leaves.map(leave => 
+        leave._id === response.data._id ? response.data : leave
+      ));
+      setSelectedLeave(response.data);
+      setNewComment('');
+      toast.success('Comment added successfully');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add comment');
+    }
+  };
 
   if (loading) return <div className="p-4 text-center">Loading leaves...</div>
   if (error) return <div className="p-4 text-red-500 text-center">{error}</div>
@@ -128,12 +177,12 @@ const Leaves = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -162,15 +211,27 @@ const Leaves = () => {
                         {leave.status.toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {leave.status === 'pending' && (
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center space-x-3">
+                        {leave.status === 'pending' && (
+                          <button
+                            onClick={() => handleDelete(leave._id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleDelete(leave._id)}
-                          className="text-red-600 hover:text-red-900"
+                          onClick={() => {
+                            setSelectedLeave(leave);
+                            setShowCommentModal(true);
+                          }}
+                          className="flex items-center text-blue-600 hover:text-blue-700"
                         >
-                          Delete
+                          <FaComment className="mr-1" />
+                          {leave.comments?.length || 0}
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -254,6 +315,62 @@ const Leaves = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Comments Modal */}
+      {showCommentModal && selectedLeave && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Comments</h2>
+              <button
+                onClick={() => {
+                  setShowCommentModal(false);
+                  setNewComment('');
+                }}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                ×
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {selectedLeave.comments?.map((comment) => (
+                  <div key={comment._id} className="bg-gray-50 p-3 rounded-lg">
+                    <div className="text-sm font-medium text-gray-900">
+                      {comment.user?.name || comment.user?.email || 'Unknown User'}
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">{comment.text}</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {new Date(comment.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+                {!selectedLeave.comments?.length && (
+                  <p className="text-gray-500 text-center py-4">No comments yet</p>
+                )}
+              </div>
+              <form onSubmit={handleAddComment} className="mt-4">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows="3"
+                  placeholder="Add a comment..."
+                  required
+                />
+                <div className="flex justify-end mt-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    Add Comment
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
