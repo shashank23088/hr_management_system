@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const Team = require('../models/Team')
 const { auth } = require('../middleware/auth')
+const mongoose = require('mongoose')
 
 // @route   GET api/teams
 // @desc    Get all teams
@@ -95,19 +96,25 @@ router.delete('/:id', auth, (req, res) => {
 // Get teams for a specific employee
 router.get('/employee/:employeeId', auth, async (req, res) => {
     try {
+        console.log('Fetching teams for employee:', req.params.employeeId);
+        
+        // Convert string ID to ObjectId using new keyword
+        const employeeId = new mongoose.Types.ObjectId(req.params.employeeId);
+        
         const teams = await Team.find({
             $or: [
-                { leader: req.params.employeeId },
-                { members: req.params.employeeId }
+                { leader: employeeId },
+                { members: { $in: [employeeId] } }
             ]
         })
         .populate('leader', 'name email')
         .populate('members', 'name email');
         
+        console.log('Found teams:', teams);
         res.json(teams);
     } catch (error) {
         console.error('Error fetching employee teams:', error);
-        res.status(500).json({ message: 'Error fetching teams' });
+        res.status(500).json({ message: 'Error fetching teams: ' + error.message });
     }
 });
 

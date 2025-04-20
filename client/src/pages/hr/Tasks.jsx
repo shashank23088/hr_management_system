@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaComment, FaEye } from 'react-icons/fa';
 import axios from '../../utils/axios';
 import { toast } from 'react-toastify';
 
@@ -20,6 +20,9 @@ const Tasks = () => {
     dueDate: '',
     status: 'pending'
   });
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [newComment, setNewComment] = useState('');
 
   useEffect(() => {
     fetchTasks();
@@ -110,6 +113,57 @@ const Tasks = () => {
     }
   };
 
+  const handleViewComments = async (task) => {
+    try {
+      // Fetch the task with populated comments
+      const response = await axios.get(`/api/tasks/${task._id}`);
+      setSelectedTask(response.data);
+      setShowCommentsModal(true);
+    } catch (err) {
+      toast.error('Failed to load comments');
+    }
+  };
+
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    try {
+      const response = await axios.post(`/api/tasks/${selectedTask._id}/comments`, {
+        comment: newComment.trim()
+      });
+      
+      // Update the task in the tasks list with populated data
+      setTasks(tasks.map(task => 
+        task._id === selectedTask._id ? response.data : task
+      ));
+      
+      // Update the selected task with populated data
+      setSelectedTask(response.data);
+      setNewComment('');
+      toast.success('Comment added successfully');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add comment');
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      const response = await axios.delete(`/api/tasks/${selectedTask._id}/comments/${commentId}`);
+      
+      // Update the task in the tasks list with populated data
+      setTasks(tasks.map(task => 
+        task._id === selectedTask._id ? response.data : task
+      ));
+      
+      // Update the selected task with populated data
+      setSelectedTask(response.data);
+      toast.success('Comment deleted successfully');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete comment');
+    }
+  };
+
   if (loading) return <div className="text-center mt-8">Loading...</div>;
   if (error) return <div className="text-center mt-8 text-red-500">{error}</div>;
 
@@ -147,6 +201,7 @@ const Tasks = () => {
               <th className="px-6 py-3 text-left">Priority</th>
               <th className="px-6 py-3 text-left">Due Date</th>
               <th className="px-6 py-3 text-left">Status</th>
+              <th className="px-6 py-3 text-left">Comments</th>
               <th className="px-6 py-3 text-left">Actions</th>
             </tr>
           </thead>
@@ -176,16 +231,27 @@ const Tasks = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4">
+                  <button
+                    onClick={() => handleViewComments(task)}
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                  >
+                    <FaComment />
+                    <span>{task.comments?.length || 0}</span>
+                  </button>
+                </td>
+                <td className="px-6 py-4">
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEdit(task)}
                       className="text-blue-500 hover:text-blue-700"
+                      title="Edit Task"
                     >
                       <FaEdit />
                     </button>
                     <button
                       onClick={() => handleDelete(task._id)}
                       className="text-red-500 hover:text-red-700"
+                      title="Delete Task"
                     >
                       <FaTrash />
                     </button>
@@ -312,6 +378,81 @@ const Tasks = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Comments Modal */}
+      {showCommentsModal && selectedTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">
+                Comments for Task: {selectedTask.title}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowCommentsModal(false);
+                  setSelectedTask(null);
+                  setNewComment('');
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Add Comment Form */}
+            <form onSubmit={handleAddComment} className="mb-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Add a Comment
+                </label>
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  rows="3"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+              >
+                Add Comment
+              </button>
+            </form>
+
+            {/* Comments List */}
+            <div className="space-y-4">
+              {selectedTask.comments?.length > 0 ? (
+                selectedTask.comments.map((comment) => (
+                  <div key={comment._id} className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm text-gray-600">
+                          By: {comment.user?.name || comment.user?.email || 'Unknown User'}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          {new Date(comment.createdAt).toLocaleString()}
+                        </p>
+                        <p className="mt-2">{comment.text}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteComment(comment._id)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Delete Comment"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-gray-500">No comments yet</p>
+              )}
+            </div>
           </div>
         </div>
       )}

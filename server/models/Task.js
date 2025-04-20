@@ -1,5 +1,21 @@
 const mongoose = require('mongoose');
 
+const CommentSchema = new mongoose.Schema({
+  text: {
+    type: String,
+    required: true
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
 const TaskSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -33,6 +49,7 @@ const TaskSchema = new mongoose.Schema({
     ref: 'Team',
     required: true,
   },
+  comments: [CommentSchema],
   createdAt: {
     type: Date,
     default: Date.now,

@@ -1,66 +1,222 @@
 const express = require('express')
 const router = express.Router()
 const Leave = require('../models/Leave')
-const { auth } = require('../middleware/auth')
+const { auth, isHR } = require('../middleware/auth')
 
 // @route   GET api/leaves
-// @desc    Get all leave records
+// @desc    Get all leaves (HR only)
+// @access  Private/HR
+router.get('/', [auth, isHR], async (req, res) => {
+  try {
+    const leaves = await Leave.find()
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
+      .populate('comments.user', 'name email')
+    res.json(leaves)
+  } catch (err) {
+    console.error('Error fetching leaves:', err.message)
+    res.status(500).send('Server Error')
+  }
+})
+
+// @route   GET api/leaves/employee/:employeeId
+// @desc    Get leaves for a specific employee
 // @access  Private
-router.get('/', auth, (req, res) => {
-  Leave.find()
-    .populate('employee', 'name email')
-    .populate('approvedBy', 'name email')
-    .then(leaves => res.json(leaves))
-    .catch(err => {
-      console.error(err.message)
-      res.status(500).send('Server Error')
-    })
+router.get('/employee/:employeeId', auth, async (req, res) => {
+  try {
+    // Check if user is HR or the employee themselves
+    if (!req.user.isHR && req.user._id.toString() !== req.params.employeeId) {
+      return res.status(403).json({ message: 'Not authorized to view these leaves' })
+    }
+
+    const leaves = await Leave.find({ employee: req.params.employeeId })
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
+      .populate('comments.user', 'name email')
+    res.json(leaves)
+  } catch (err) {
+    console.error('Error fetching employee leaves:', err.message)
+    res.status(500).send('Server Error')
+  }
+})
+
+// @route   GET api/leaves/:id
+// @desc    Get a single leave by ID
+// @access  Private
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const leave = await Leave.findById(req.params.id)
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
+      .populate('comments.user', 'name email')
+    
+    if (!leave) {
+      return res.status(404).json({ message: 'Leave not found' })
+    }
+
+    // Check if user is HR or the employee themselves
+    if (!req.user.isHR && req.user._id.toString() !== leave.employee._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to view this leave' })
+    }
+
+    res.json(leave)
+  } catch (err) {
+    console.error('Error fetching leave:', err.message)
+    res.status(500).send('Server Error')
+  }
 })
 
 // @route   POST api/leaves
-// @desc    Create a leave record
+// @desc    Create a new leave request
 // @access  Private
-router.post('/', auth, (req, res) => {
-  const { employee, startDate, endDate, reason } = req.body
+router.post('/', auth, async (req, res) => {
+  try {
+    const { startDate, endDate, type, reason } = req.body
 
-  const leave = new Leave({
-    employee,
-    startDate,
-    endDate,
-    reason,
-    status: 'pending'
-  })
-
-  leave.save()
-    .then(leave => res.json(leave))
-    .catch(err => {
-      console.error(err.message)
-      res.status(500).send('Server Error')
+    const leave = new Leave({
+      employee: req.user.id,
+      startDate,
+      endDate,
+      type,
+      reason,
+      status: 'pending'
     })
+
+    const newLeave = await leave.save()
+    await newLeave.populate('employee', 'name email')
+    res.status(201).json(newLeave)
+  } catch (err) {
+    console.error('Error creating leave request:', err.message)
+    res.status(400).json({ message: err.message })
+  }
 })
 
-// @route   PUT api/leaves/:id
-// @desc    Update a leave record
+// @route   PUT api/leaves/:id/status
+// @desc    Update leave status (HR only)
+// @access  Private/HR
+router.put('/:id/status', [auth, isHR], async (req, res) => {
+  try {
+    const { status, approvalNotes } = req.body
+
+    const leave = await Leave.findById(req.params.id)
+    if (!leave) {
+      return res.status(404).json({ message: 'Leave not found' })
+    }
+
+    leave.status = status
+    leave.approvedBy = req.user.id
+    leave.approvalDate = Date.now()
+    leave.approvalNotes = approvalNotes
+
+    const updatedLeave = await leave.save()
+    await updatedLeave
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
+      .populate('comments.user', 'name email')
+      .execPopulate()
+
+    res.json(updatedLeave)
+  } catch (err) {
+    console.error('Error updating leave status:', err.message)
+    res.status(400).json({ message: err.message })
+  }
+})
+
+// @route   POST api/leaves/:id/comments
+// @desc    Add a comment to a leave request
 // @access  Private
-router.put('/:id', auth, (req, res) => {
-  const { status } = req.body
+router.post('/:id/comments', auth, async (req, res) => {
+  try {
+    const leave = await Leave.findById(req.params.id)
+    if (!leave) {
+      return res.status(404).json({ message: 'Leave not found' })
+    }
 
-  Leave.findById(req.params.id)
-    .then(leave => {
-      if (!leave) {
-        return res.status(404).json({ msg: 'Leave record not found' })
-      }
+    // Check if user is HR or the employee themselves
+    if (!req.user.isHR && req.user._id.toString() !== leave.employee.toString()) {
+      return res.status(403).json({ message: 'Not authorized to comment on this leave' })
+    }
 
-      leave.status = status || leave.status
-      leave.approvedBy = req.user.id
-
-      return leave.save()
+    leave.comments.push({
+      text: req.body.text,
+      user: req.user._id
     })
-    .then(leave => res.json(leave))
-    .catch(err => {
-      console.error(err.message)
-      res.status(500).send('Server Error')
-    })
+
+    const updatedLeave = await leave.save()
+    await updatedLeave
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
+      .populate('comments.user', 'name email')
+      .execPopulate()
+
+    res.json(updatedLeave)
+  } catch (err) {
+    console.error('Error adding comment to leave:', err.message)
+    res.status(400).json({ message: err.message })
+  }
+})
+
+// @route   DELETE api/leaves/:id/comments/:commentId
+// @desc    Delete a comment from a leave request
+// @access  Private
+router.delete('/:id/comments/:commentId', auth, async (req, res) => {
+  try {
+    const leave = await Leave.findById(req.params.id)
+    if (!leave) {
+      return res.status(404).json({ message: 'Leave not found' })
+    }
+
+    const comment = leave.comments.id(req.params.commentId)
+    if (!comment) {
+      return res.status(404).json({ message: 'Comment not found' })
+    }
+
+    // Check if user is HR or the comment owner
+    if (!req.user.isHR && req.user._id.toString() !== comment.user.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete this comment' })
+    }
+
+    comment.remove()
+    const updatedLeave = await leave.save()
+    await updatedLeave
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
+      .populate('comments.user', 'name email')
+      .execPopulate()
+
+    res.json(updatedLeave)
+  } catch (err) {
+    console.error('Error deleting comment from leave:', err.message)
+    res.status(400).json({ message: err.message })
+  }
+})
+
+// @route   DELETE api/leaves/:id
+// @desc    Delete a leave request (only if pending)
+// @access  Private
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const leave = await Leave.findById(req.params.id)
+    
+    if (!leave) {
+      return res.status(404).json({ message: 'Leave not found' })
+    }
+
+    // Only allow deletion if status is pending and user is HR or the employee themselves
+    if (leave.status !== 'pending') {
+      return res.status(400).json({ message: 'Can only delete pending leave requests' })
+    }
+
+    if (!req.user.isHR && req.user._id.toString() !== leave.employee.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete this leave' })
+    }
+
+    await leave.remove()
+    res.json({ message: 'Leave request deleted' })
+  } catch (err) {
+    console.error('Error deleting leave request:', err.message)
+    res.status(500).json({ message: err.message })
+  }
 })
 
 module.exports = router 

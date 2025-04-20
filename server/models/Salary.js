@@ -10,11 +10,11 @@ const SalarySchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  bonus: {
+  raise: {
     type: Number,
     default: 0,
   },
-  bonusReason: {
+  raiseReason: {
     type: String,
   },
   date: {

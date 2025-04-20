@@ -1,125 +1,183 @@
 import React, { useState, useEffect } from 'react';
-import { FaReply } from 'react-icons/fa';
-import axios from '../../utils/axios';
+import api from '../../utils/axios';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
+import { FaSpinner, FaTrash } from 'react-icons/fa';
 
 const Tickets = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showModal, setShowModal] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [response, setResponse] = useState('');
+  const [showResponseModal, setShowResponseModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [ticketToDelete, setTicketToDelete] = useState(null);
+  const { user } = useSelector((state) => state.auth);
 
   useEffect(() => {
+    if (!user?.id) {
+      setError('User data not available');
+      setLoading(false);
+      return;
+    }
     fetchTickets();
-  }, []);
+  }, [user]);
 
   const fetchTickets = async () => {
     try {
-      const response = await axios.get('/api/tickets');
+      console.log('Fetching tickets with user:', user.id);
+      const response = await api.get('/api/tickets');
       setTickets(response.data);
       setLoading(false);
     } catch (err) {
-      setError(err.response?.data?.message || 'Error fetching tickets');
+      const errorMessage = err.response?.data?.message || 'Error fetching tickets';
+      console.error('Error fetching tickets:', err);
+      setError(errorMessage);
       setLoading(false);
-      toast.error('Failed to fetch tickets');
+      toast.error(errorMessage);
     }
   };
 
-  const handleSubmitResponse = async (e) => {
+  const handleResponseSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`/api/tickets/${selectedTicket._id}/response`, {
+      console.log('Submitting response:', {
+        ticketId: selectedTicket._id,
         response,
         status: 'resolved'
       });
+      
+      const result = await api.post(`/api/tickets/${selectedTicket._id}/response`, {
+        response,
+        status: 'resolved'
+      });
+      
+      console.log('Response submission result:', result.data);
+      
       toast.success('Response submitted successfully');
-      setShowModal(false);
-      setSelectedTicket(null);
+      setShowResponseModal(false);
       setResponse('');
+      setSelectedTicket(null);
       fetchTickets();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error submitting response');
+      const errorMessage = err.response?.data?.message || 'Error submitting response';
+      console.error('Error submitting response:', err);
+      toast.error(errorMessage);
     }
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const handleStatusChange = async (ticketId, newStatus) => {
+    try {
+      await api.put(`/api/tickets/${ticketId}`, {
+        status: newStatus,
+      });
+      toast.success('Ticket status updated successfully');
+      fetchTickets();
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || 'Error updating ticket status';
+      console.error('Error updating ticket status:', err);
+      toast.error(errorMessage);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'resolved':
-        return 'bg-green-100 text-green-800';
-      case 'in-progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const handleDeleteClick = (ticket) => {
+    setTicketToDelete(ticket);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await api.delete(`/api/tickets/${ticketToDelete._id}`);
+      toast.success('Ticket deleted successfully');
+      setShowDeleteModal(false);
+      setTicketToDelete(null);
+      fetchTickets(); // Refresh the list
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || 'Error deleting ticket';
+      console.error('Error deleting ticket:', err);
+      toast.error(errorMessage);
     }
   };
 
-  if (loading) return <div className="text-center mt-8">Loading...</div>;
-  if (error) return <div className="text-center mt-8 text-red-500">{error}</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <FaSpinner className="animate-spin text-4xl text-blue-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center text-red-500 p-4">
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-6">Support Tickets</h1>
-
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-lg">
-          <thead className="bg-gray-100">
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Support Tickets</h1>
+      
+      <div className="overflow-x-auto bg-white rounded-lg shadow">
+        <table className="min-w-full">
+          <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left">Title</th>
-              <th className="px-6 py-3 text-left">Employee</th>
-              <th className="px-6 py-3 text-left">Priority</th>
-              <th className="px-6 py-3 text-left">Status</th>
-              <th className="px-6 py-3 text-left">Created At</th>
-              <th className="px-6 py-3 text-left">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="bg-white divide-y divide-gray-200">
             {tickets.map((ticket) => (
-              <tr key={ticket._id} className="border-b hover:bg-gray-50">
-                <td className="px-6 py-4">
-                  <div className="font-medium">{ticket.title}</div>
-                  <div className="text-sm text-gray-500">{ticket.description}</div>
+              <tr key={ticket._id}>
+                <td className="px-6 py-4 whitespace-nowrap">{ticket.title}</td>
+                <td className="px-6 py-4">{ticket.description}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {ticket.employee?.name || 'Unknown Employee'}
                 </td>
-                <td className="px-6 py-4">{ticket.employee?.name || 'N/A'}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-xs ${getPriorityColor(ticket.priority)}`}>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                    ${ticket.priority === 'high' ? 'bg-red-100 text-red-800' :
+                      ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-green-100 text-green-800'}`}>
                     {ticket.priority}
                   </span>
                 </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(ticket.status)}`}>
-                    {ticket.status}
-                  </span>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <select
+                    value={ticket.status}
+                    onChange={(e) => handleStatusChange(ticket._id, e.target.value)}
+                    className="block w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                  </select>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 whitespace-nowrap">
                   {new Date(ticket.createdAt).toLocaleDateString()}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 whitespace-nowrap space-x-2">
                   <button
                     onClick={() => {
                       setSelectedTicket(ticket);
-                      setShowModal(true);
+                      setShowResponseModal(true);
                     }}
-                    className="text-blue-500 hover:text-blue-700 flex items-center gap-1"
-                    disabled={ticket.status === 'resolved'}
+                    className="text-blue-600 hover:text-blue-900 mr-2"
                   >
-                    <FaReply /> Reply
+                    Respond
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClick(ticket)}
+                    className="text-red-600 hover:text-red-900"
+                  >
+                    <FaTrash className="inline" />
                   </button>
                 </td>
               </tr>
@@ -128,47 +186,81 @@ const Tickets = () => {
         </table>
       </div>
 
-      {showModal && selectedTicket && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-full max-w-2xl">
-            <h2 className="text-xl font-semibold mb-4">Respond to Ticket</h2>
-            <div className="mb-4">
-              <h3 className="font-medium">Ticket Details</h3>
-              <p className="text-gray-600">{selectedTicket.title}</p>
-              <p className="text-sm text-gray-500 mt-2">{selectedTicket.description}</p>
+      {/* Response Modal */}
+      {showResponseModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                Respond to Ticket
+              </h3>
+              <form onSubmit={handleResponseSubmit}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Response
+                  </label>
+                  <textarea
+                    value={response}
+                    onChange={(e) => setResponse(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    rows="4"
+                    required
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowResponseModal(false);
+                      setSelectedTicket(null);
+                      setResponse('');
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Submit Response
+                  </button>
+                </div>
+              </form>
             </div>
-            <form onSubmit={handleSubmitResponse} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Your Response</label>
-                <textarea
-                  value={response}
-                  onChange={(e) => setResponse(e.target.value)}
-                  className="w-full p-2 border rounded"
-                  rows="4"
-                  required
-                  placeholder="Type your response here..."
-                />
-              </div>
-              <div className="flex justify-end gap-4">
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                Confirm Delete
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Are you sure you want to delete this ticket? This action cannot be undone.
+              </p>
+              <div className="flex justify-end space-x-3">
                 <button
-                  type="button"
                   onClick={() => {
-                    setShowModal(false);
-                    setSelectedTicket(null);
-                    setResponse('');
+                    setShowDeleteModal(false);
+                    setTicketToDelete(null);
                   }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  onClick={handleDeleteConfirm}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                 >
-                  Submit Response
+                  Delete
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

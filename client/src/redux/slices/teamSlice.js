@@ -9,7 +9,7 @@ export const fetchTeams = createAsyncThunk(
       const response = await api.get('/api/teams')
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to fetch teams' })
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch teams')
     }
   }
 )
@@ -21,7 +21,7 @@ export const createTeam = createAsyncThunk(
       const response = await api.post('/api/teams', teamData)
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data || { message: 'Failed to create team' })
+      return rejectWithValue(error.response?.data?.message || 'Failed to create team')
     }
   }
 )
@@ -34,6 +34,18 @@ export const updateTeam = createAsyncThunk(
       return response.data
     } catch (error) {
       return rejectWithValue(error.response?.data || { message: 'Failed to update team' })
+    }
+  }
+)
+
+export const deleteTeam = createAsyncThunk(
+  'teams/deleteTeam',
+  async (teamId, { rejectWithValue }) => {
+    try {
+      await api.delete(`/api/teams/${teamId}`)
+      return teamId
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete team')
     }
   }
 )
@@ -63,7 +75,7 @@ const teamSlice = createSlice({
       })
       .addCase(fetchTeams.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload?.message || 'Failed to fetch teams'
+        state.error = action.payload
       })
       // Create Team
       .addCase(createTeam.pending, (state) => {
@@ -76,7 +88,7 @@ const teamSlice = createSlice({
       })
       .addCase(createTeam.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload?.message || 'Failed to create team'
+        state.error = action.payload
       })
       // Update Team
       .addCase(updateTeam.pending, (state) => {
@@ -93,6 +105,19 @@ const teamSlice = createSlice({
       .addCase(updateTeam.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload?.message || 'Failed to update team'
+      })
+      // Delete Team
+      .addCase(deleteTeam.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(deleteTeam.fulfilled, (state, action) => {
+        state.loading = false
+        state.records = state.records.filter(team => team._id !== action.payload)
+      })
+      .addCase(deleteTeam.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
       })
   },
 })

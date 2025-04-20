@@ -14,7 +14,7 @@ const Performance = () => {
     employee: '',
     team: '',
     task: '',
-    rating: 0,
+    rating: 1,
     feedback: '',
     goals: '',
     strengths: '',
@@ -25,7 +25,14 @@ const Performance = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!user?.id) {
+        setError('User data not available')
+        setLoading(false)
+        return
+      }
+
       try {
+        console.log('Fetching data with user:', user.id)
         const [employeesRes, teamsRes, tasksRes, reviewsRes] = await Promise.all([
           axios.get('/api/employees'),
           axios.get('/api/teams'),
@@ -38,29 +45,40 @@ const Performance = () => {
         setReviews(reviewsRes.data || [])
         setLoading(false)
       } catch (err) {
-        setError(err.response?.data?.message || 'Error fetching data')
+        const errorMessage = err.response?.data?.message || 'Error fetching data'
+        console.error('Error fetching data:', err)
+        setError(errorMessage)
         setLoading(false)
-        toast.error(err.response?.data?.message || 'Error fetching data')
+        toast.error(errorMessage)
       }
     }
 
     fetchData()
-  }, [])
+  }, [user])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    if (!user?.id) {
+      const errorMessage = 'User data not available'
+      setError(errorMessage)
+      toast.error(errorMessage)
+      return
+    }
+
     try {
       const reviewData = {
         ...newReview,
         ratedBy: user.id
       }
+      console.log('Submitting review:', reviewData)
       const response = await axios.post('/api/performance', reviewData)
       setReviews([...reviews, response.data])
       setNewReview({
         employee: '',
         team: '',
         task: '',
-        rating: 0,
+        rating: 1,
         feedback: '',
         goals: '',
         strengths: '',
@@ -69,8 +87,10 @@ const Performance = () => {
       document.getElementById('createReviewModal').close()
       toast.success('Performance review added successfully')
     } catch (err) {
-      setError(err.response?.data?.message || 'Error creating review')
-      toast.error(err.response?.data?.message || 'Error creating review')
+      const errorMessage = err.response?.data?.message || 'Error creating review'
+      console.error('Error creating review:', err)
+      setError(errorMessage)
+      toast.error(errorMessage)
     }
   }
 

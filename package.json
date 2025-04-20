@@ -8,7 +8,8 @@
     "server": "nodemon server/server.js",
     "client": "cd client && npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "init-db": "node server/scripts/initDB.js"
+    "init-db": "node server/scripts/initDB.js",
+    "clear-db": "node server/scripts/clearDB.js"
   },
   "author": "",
   "license": "ISC",

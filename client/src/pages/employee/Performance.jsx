@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
+import axios from '../../utils/axios';
 import { FaStar, FaChartLine, FaCheckCircle, FaClipboardList } from 'react-icons/fa';
+import { toast } from 'react-toastify';
 
 const Performance = () => {
   const [performanceReviews, setPerformanceReviews] = useState([]);
@@ -14,27 +15,32 @@ const Performance = () => {
   
   useEffect(() => {
     const fetchPerformanceReviews = async () => {
+      if (!user || !user.employeeId) {
+        setError('User data not available');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
         
-        const response = await axios.get(`/api/performance/employee/${user.id}`, {
-          headers: {
-            'Authorization': `Bearer ${user.token}`
-          }
-        });
+        console.log('Fetching performance reviews for employee:', user.employeeId);
+        const response = await axios.get(`/api/performance/employee/${user.employeeId}`);
         
         setPerformanceReviews(response.data);
         setLoading(false);
       } catch (err) {
-        setError('Failed to fetch performance reviews');
+        const errorMessage = err.response?.data?.message || 'Failed to fetch performance reviews';
+        setError(errorMessage);
         setLoading(false);
-        console.error(err);
+        console.error('Error fetching performance reviews:', err);
+        toast.error(errorMessage);
       }
     };
     
     fetchPerformanceReviews();
-  }, [user.id, user.token]);
+  }, [user]);
   
   // Helper function to format date
   const formatDate = (dateString) => {

@@ -81,4 +81,66 @@ router.delete('/:id', auth, (req, res) => {
     })
 })
 
+// @route   GET api/employees/me
+// @desc    Get current employee profile
+// @access  Private
+router.get('/me', auth, async (req, res) => {
+  try {
+    const employee = await Employee.findById(req.user.id)
+      .populate('team', 'name')
+    
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' })
+    }
+
+    res.json(employee)
+  } catch (err) {
+    console.error('Error fetching employee profile:', err.message)
+    res.status(500).send('Server Error')
+  }
+})
+
+// @route   GET api/employees/:id
+// @desc    Get employee by ID
+// @access  Private
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const employee = await Employee.findById(req.params.id)
+      .populate('team', 'name')
+    
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' })
+    }
+
+    res.json(employee)
+  } catch (err) {
+    console.error('Error fetching employee:', err.message)
+    res.status(500).send('Server Error')
+  }
+})
+
+// @route   GET api/employees/user/:userId
+// @desc    Get employee by user ID
+// @access  Private
+router.get('/user/:userId', auth, async (req, res) => {
+  try {
+    const employee = await Employee.findOne({ user: req.params.userId })
+      .populate('team', 'name');
+    
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    // Only allow HR or the employee themselves to access their data
+    if (req.user.role !== 'hr' && req.user.id !== req.params.userId) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    res.json(employee);
+  } catch (err) {
+    console.error('Error fetching employee by user ID:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 module.exports = router 

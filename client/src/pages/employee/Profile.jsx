@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import api from '../../utils/axios'
 
 const Profile = () => {
@@ -7,6 +8,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const { user } = useSelector((state) => state.auth)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const fetchEmployee = async () => {
