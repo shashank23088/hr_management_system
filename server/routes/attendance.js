@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const Attendance = require('../models/Attendance')
 const { auth, isHR } = require('../middleware/auth')
+const Employee = require('../models/Employee')
 
 // @route   GET api/attendance
 // @desc    Get all attendance records
@@ -13,7 +14,7 @@ router.get('/', auth, isHR, async (req, res) => {
     
     if (month && year) {
       const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
       query.date = { $gte: startDate, $lte: endDate };
     }
 
@@ -26,11 +27,12 @@ router.get('/', auth, isHR, async (req, res) => {
     }
     
     const attendanceRecords = await Attendance.find(query)
-      .populate('employee', 'name email')
+      .populate('employee', 'name email department position')
       .sort({ date: -1 });
     
     res.json(attendanceRecords);
   } catch (error) {
+    console.error('Error fetching attendance records:', error);
     res.status(500).json({ message: error.message });
   }
 })
@@ -41,26 +43,46 @@ router.get('/', auth, isHR, async (req, res) => {
 router.get('/employee/:employeeId', auth, async (req, res) => {
   try {
     const { employeeId } = req.params;
-    const { month, year } = req.query;
+    const { month, year, date } = req.query;
     
-    // Only allow HR or the employee themselves to access their records
-    if (req.user.role?.toLowerCase() !== 'hr' && req.user.id !== employeeId) {
-      return res.status(403).json({ message: 'Access denied' });
+    // For debugging
+    console.log('User from auth middleware:', req.user);
+    console.log('Requested employeeId:', employeeId);
+    
+    // Check if the user is the same as the requested employee or is HR
+    const isAuthorized = req.user.role?.toLowerCase() === 'hr' || req.user.id.toString() === employeeId;
+    
+    if (!isAuthorized) {
+      // Check if the user is trying to access their own employee record by a different ID
+      const employee = await Employee.findOne({ user: req.user.id });
+      
+      if (!employee || employee._id.toString() !== employeeId) {
+        console.log('Access denied - User ID does not match employee user or HR role');
+        return res.status(403).json({ message: 'Access denied' });
+      }
     }
     
     let query = { employee: employeeId };
     
     if (month && year) {
       const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
       query.date = { $gte: startDate, $lte: endDate };
+    } else if (date) {
+      // If specific date is provided (for today's status)
+      const specificDate = new Date(date);
+      const nextDay = new Date(specificDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      query.date = { $gte: specificDate, $lt: nextDay };
     }
     
     const attendanceRecords = await Attendance.find(query)
-      .populate('employee', 'name email')
+      .populate('employee', 'name email department position')
       .sort({ date: -1 });
+      
     res.json(attendanceRecords);
   } catch (error) {
+    console.error('Error fetching employee attendance:', error);
     res.status(500).json({ message: error.message });
   }
 })
@@ -92,7 +114,7 @@ router.post('/', auth, isHR, async (req, res) => {
       const checkOutTime = new Date(`2000-01-01T${checkOut}`);
       if (checkOutTime > checkInTime) {
         const diffMs = checkOutTime - checkInTime;
-        workHours = Math.round((diffMs / 3600000) * 10) / 10;
+        workHours = Math.round((diffMs / 3600000) * 100) / 100; // Round to 2 decimal places
       }
     }
     
@@ -120,7 +142,17 @@ router.post('/', auth, isHR, async (req, res) => {
 // @access  Private
 router.post('/check-in', auth, async (req, res) => {
   try {
-    const employeeId = req.user.id;
+    const userId = req.user.id;
+    
+    // Find the employee record associated with this user
+    const employee = await Employee.findOne({ user: userId });
+    
+    if (!employee) {
+      console.log('Employee record not found for user ID:', userId);
+      return res.status(404).json({ message: 'Employee record not found for this user' });
+    }
+    
+    const employeeId = employee._id;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
@@ -158,12 +190,19 @@ router.post('/check-in', auth, async (req, res) => {
     }
     
     await attendanceRecord.save();
+    
+    // Get the populated record
+    const populatedRecord = await Attendance.findById(attendanceRecord._id)
+      .populate('employee', 'name email department position');
+    
     res.status(200).json({ 
       message: 'Checked in successfully', 
       time: now,
-      status: attendanceRecord.status
+      status: attendanceRecord.status,
+      record: populatedRecord
     });
   } catch (error) {
+    console.error('Error checking in:', error);
     res.status(500).json({ message: error.message });
   }
 })
@@ -173,7 +212,17 @@ router.post('/check-in', auth, async (req, res) => {
 // @access  Private
 router.post('/check-out', auth, async (req, res) => {
   try {
-    const employeeId = req.user.id;
+    const userId = req.user.id;
+    
+    // Find the employee record associated with this user
+    const employee = await Employee.findOne({ user: userId });
+    
+    if (!employee) {
+      console.log('Employee record not found for user ID:', userId);
+      return res.status(404).json({ message: 'Employee record not found for this user' });
+    }
+    
+    const employeeId = employee._id;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
@@ -201,15 +250,22 @@ router.post('/check-out', auth, async (req, res) => {
     // Calculate work hours
     const checkInTime = new Date(attendanceRecord.checkIn);
     const workHours = (now - checkInTime) / (1000 * 60 * 60); // Convert ms to hours
-    attendanceRecord.workHours = parseFloat(workHours.toFixed(2));
+    attendanceRecord.workHours = Math.round(workHours * 100) / 100; // Round to 2 decimal places for better minutes accuracy
     
     await attendanceRecord.save();
+    
+    // Get the populated record
+    const populatedRecord = await Attendance.findById(attendanceRecord._id)
+      .populate('employee', 'name email department position');
+    
     res.status(200).json({ 
       message: 'Checked out successfully', 
       time: now,
-      workHours: attendanceRecord.workHours
+      workHours: attendanceRecord.workHours,
+      record: populatedRecord
     });
   } catch (error) {
+    console.error('Error checking out:', error);
     res.status(500).json({ message: error.message });
   }
 })
@@ -237,9 +293,9 @@ router.put('/:id', auth, isHR, async (req, res) => {
       const checkInTime = new Date(checkIn);
       const checkOutTime = new Date(checkOut);
       const calculatedWorkHours = (checkOutTime - checkInTime) / (1000 * 60 * 60);
-      attendanceRecord.workHours = parseFloat(calculatedWorkHours.toFixed(2));
+      attendanceRecord.workHours = Math.round(calculatedWorkHours * 100) / 100;
     } else if (workHours !== undefined) {
-      attendanceRecord.workHours = workHours;
+      attendanceRecord.workHours = Math.round(workHours * 100) / 100;
     }
     
     await attendanceRecord.save();
@@ -255,15 +311,16 @@ router.put('/:id', auth, isHR, async (req, res) => {
 router.delete('/:id', auth, isHR, async (req, res) => {
   try {
     const { id } = req.params;
-    const attendanceRecord = await Attendance.findById(id);
     
-    if (!attendanceRecord) {
+    const result = await Attendance.findByIdAndDelete(id);
+    
+    if (!result) {
       return res.status(404).json({ message: 'Attendance record not found' });
     }
     
-    await attendanceRecord.remove();
-    res.json({ message: 'Attendance record deleted' });
+    res.json({ message: 'Attendance record deleted successfully' });
   } catch (error) {
+    console.error('Error deleting attendance record:', error);
     res.status(500).json({ message: error.message });
   }
 })

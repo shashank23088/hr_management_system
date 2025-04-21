@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Employee = require('../models/Employee');
 const Team = require('../models/Team');
+const Salary = require('../models/Salary');
 
 const initDB = async () => {
   try {
@@ -18,6 +19,7 @@ const initDB = async () => {
     await User.deleteMany({});
     await Employee.deleteMany({});
     await Team.deleteMany({});
+    await Salary.deleteMany({});
     console.log('Cleared existing data');
 
     // Create HR user
@@ -25,12 +27,14 @@ const initDB = async () => {
     console.log('HR password hashed');
     
     const hrUser = await User.create({
+      name: 'HR Admin',
       email: process.env.HR_EMAIL,
       password: hrPassword,
       role: 'hr'
     });
     console.log('HR user created:', {
       id: hrUser._id,
+      name: hrUser.name,
       email: hrUser.email,
       role: hrUser.role
     });
@@ -38,6 +42,7 @@ const initDB = async () => {
     // Create sample employees
     const employee1Password = await bcrypt.hash('password123', 10);
     const employee1User = await User.create({
+      name: 'John Doe',
       email: 'john@company.com',
       password: employee1Password,
       role: 'employee'
@@ -45,6 +50,7 @@ const initDB = async () => {
 
     const employee2Password = await bcrypt.hash('password123', 10);
     const employee2User = await User.create({
+      name: 'Jane Smith',
       email: 'jane@company.com',
       password: employee2Password,
       role: 'employee'
@@ -71,6 +77,23 @@ const initDB = async () => {
       salary: 85000,
       status: 'active'
     });
+
+    // Create salary records for employees
+    await Salary.create({
+      employee: employee1._id,
+      amount: 75000,
+      date: new Date('2023-01-15'),
+      raise: 0
+    });
+
+    await Salary.create({
+      employee: employee2._id,
+      amount: 85000,
+      date: new Date('2023-02-01'),
+      raise: 0
+    });
+
+    console.log('Salary records created for employees');
 
     // Create sample team
     const team = await Team.create({

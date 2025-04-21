@@ -1,6 +1,7 @@
 # Dependencies
 /node_modules
 /client/node_modules
+/server/node_modules
 /.pnp
 .pnp.js
 
@@ -15,15 +16,19 @@
 /client/.env.development.local
 /client/.env.test.local
 /client/.env.production.local
+/server/.env
 
 # Testing
 /coverage
 /client/coverage
+/server/coverage
 
 # Production
 /build
 /client/build
 /client/dist
+/server/build
+/server/dist
 
 # Logs
 logs
@@ -80,4 +85,24 @@ debug.log
 # Temporary files
 *.tmp
 *.temp
-.cache/ 
+.cache/
+
+# MongoDB data directory
+/data/db
+
+# Package locks (if you decide not to commit them)
+# package-lock.json
+# yarn.lock
+# /client/package-lock.json
+# /client/yarn.lock
+# /server/package-lock.json
+# /server/yarn.lock
+
+# Uploaded files directory (if applicable)
+/uploads
+/server/uploads
+
+# Screenshots - Allow all screenshots but ignore specific ones
+# /screenshots/*          # Uncomment to ignore all screenshots
+# !screenshots/README.md  # Uncomment to keep the README
+# screenshots/*-draft.png # Ignore draft screenshots 

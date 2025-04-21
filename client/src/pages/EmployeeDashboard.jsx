@@ -9,6 +9,9 @@ import Tasks from './employee/Tasks';
 import Tickets from './employee/Tickets';
 import Leaves from './employee/Leaves';
 import Performance from './employee/Performance';
+import ChangePassword from '../components/ChangePassword';
+import Sidebar from '../components/Sidebar';
+import Attendance from './employee/Attendance';
 
 const EmployeeDashboard = () => {
   const dispatch = useDispatch();
@@ -26,81 +29,19 @@ const EmployeeDashboard = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg">
-        <div className="p-4 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-800">Employee Dashboard</h1>
-        </div>
-        <nav className="mt-4 py-4">
-          <Link
-            to="profile"
-            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors duration-200 ${isActiveRoute('profile')}`}
-          >
-            Profile
-          </Link>
-          <Link
-            to="teams"
-            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors duration-200 ${isActiveRoute('teams')}`}
-          >
-            Teams
-          </Link>
-          <Link
-            to="salary"
-            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors duration-200 ${isActiveRoute('salary')}`}
-          >
-            Salary
-          </Link>
-          <Link
-            to="tasks"
-            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors duration-200 ${isActiveRoute('tasks')}`}
-          >
-            Tasks
-          </Link>
-          <Link
-            to="tickets"
-            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors duration-200 ${isActiveRoute('tickets')}`}
-          >
-            Tickets
-          </Link>
-          <Link
-            to="leaves"
-            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors duration-200 ${isActiveRoute('leaves')}`}
-          >
-            Leaves
-          </Link>
-          <Link
-            to="performance"
-            className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors duration-200 ${isActiveRoute('performance')}`}
-          >
-            Performance
-          </Link>
-          <div className="px-4 mt-4 border-t border-gray-200 pt-4">
-            <button
-              onClick={handleLogout}
-              className="w-full px-2 py-2 text-left text-gray-700 hover:bg-red-50 hover:text-red-600 rounded transition-colors duration-200"
-            >
-              Logout
-            </button>
-          </div>
-        </nav>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-8">
-          <Routes>
-            <Route path="profile" element={<Profile />} />
-            <Route path="teams" element={<Teams />} />
-            <Route path="salary" element={<Salary />} />
-            <Route path="tasks" element={<Tasks />} />
-            <Route path="tickets" element={<Tickets />} />
-            <Route path="leaves" element={<Leaves />} />
-            <Route path="performance" element={<Performance />} />
-            <Route index element={<Profile />} />
-            <Route path="*" element={<Navigate to="profile" replace />} />
-          </Routes>
-        </div>
-      </div>
+      <Sidebar role="employee" />
+      <main className="flex-1 overflow-y-auto p-8">
+        <Routes>
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/attendance" element={<Attendance />} />
+          <Route path="/leaves" element={<Leaves />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tickets" element={<Tickets />} />
+          <Route path="/performance" element={<Performance />} />
+          <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/" element={<Profile />} />
+        </Routes>
+      </main>
     </div>
   );
 };

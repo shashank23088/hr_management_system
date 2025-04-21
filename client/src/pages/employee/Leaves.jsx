@@ -65,7 +65,7 @@ const Leaves = () => {
       setError('User data not available')
       return
     }
-
+    
     // Get the correct employee ID (either user.id or user._id)
     const employeeId = user._id || user.id
     if (!employeeId) {
@@ -213,14 +213,14 @@ const Leaves = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center space-x-3">
-                        {leave.status === 'pending' && (
-                          <button
-                            onClick={() => handleDelete(leave._id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        )}
+                      {leave.status === 'pending' && (
+                        <button
+                          onClick={() => handleDelete(leave._id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      )}
                         <button
                           onClick={() => {
                             setSelectedLeave(leave);

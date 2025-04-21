@@ -233,7 +233,7 @@ const Leaves = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 max-w-md w-full">
             <h2 className="text-xl font-bold mb-4">Comments</h2>
-            <div className="space-y-4">
+        <div className="space-y-4">
               <div className="max-h-60 overflow-y-auto space-y-2">
                 {selectedLeave.comments?.map((comment) => (
                   <div key={comment._id} className="bg-gray-50 p-3 rounded-lg">
@@ -250,26 +250,26 @@ const Leaves = () => {
                   <p className="text-gray-500 text-center">No comments yet</p>
                 )}
               </div>
-              <form onSubmit={handleAddComment} className="space-y-2">
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
+          <form onSubmit={handleAddComment} className="space-y-2">
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
                   rows="2"
-                  placeholder="Add a comment..."
+              placeholder="Add a comment..."
                   required
-                />
+            />
                 <div className="flex justify-end space-x-2">
-                  <button
+            <button
                     type="button"
                     onClick={() => {
                       setShowCommentModal(false);
                       setNewComment('');
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-                  >
+            >
                     Close
-                  </button>
+            </button>
                   <button
                     type="submit"
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
@@ -278,7 +278,7 @@ const Leaves = () => {
                   </button>
                 </div>
               </form>
-            </div>
+              </div>
           </div>
         </div>
       )}

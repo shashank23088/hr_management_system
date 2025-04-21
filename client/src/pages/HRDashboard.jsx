@@ -10,6 +10,8 @@ import Tasks from './hr/Tasks';
 import Tickets from './hr/Tickets';
 import Performance from './hr/Performance';
 import Leaves from './hr/Leaves';
+import Sidebar from '../components/Sidebar';
+import ChangePassword from '../components/ChangePassword';
 
 const HRDashboard = () => {
   const dispatch = useDispatch();
@@ -22,84 +24,21 @@ const HRDashboard = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg">
-        <div className="p-4">
-          <h1 className="text-2xl font-bold text-gray-800">HR Dashboard</h1>
-        </div>
-        <nav className="mt-4">
-          <Link
-            to="/hr/employees"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Employees
-          </Link>
-          <Link
-            to="/hr/teams"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Teams
-          </Link>
-          <Link
-            to="/hr/salary"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Salary
-          </Link>
-          <Link
-            to="/hr/attendance"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Attendance
-          </Link>
-          <Link
-            to="/hr/leaves"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Leaves
-          </Link>
-          <Link
-            to="/hr/tasks"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Tasks
-          </Link>
-          <Link
-            to="/hr/tickets"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Tickets
-          </Link>
-          <Link
-            to="/hr/performance"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Performance
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-          >
-            Logout
-          </button>
-        </nav>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto">
+      <Sidebar role="hr" />
+      <main className="flex-1 overflow-y-auto p-8">
         <Routes>
           <Route path="/employees" element={<Employees />} />
           <Route path="/teams" element={<Teams />} />
-          <Route path="/salary" element={<Salary />} />
+          <Route path="/salaries" element={<Salary />} />
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/leaves" element={<Leaves />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/performance" element={<Performance />} />
-          <Route path="/" element={<Navigate to="/hr/employees" replace />} />
-          <Route path="*" element={<Navigate to="/hr/employees" replace />} />
+          <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/" element={<Employees />} />
         </Routes>
-      </div>
+      </main>
     </div>
   );
 };

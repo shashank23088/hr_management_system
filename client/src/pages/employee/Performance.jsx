@@ -8,7 +8,7 @@ const Performance = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { user } = useSelector((state) => state.auth);
-
+  
   useEffect(() => {
     const fetchReviews = async () => {
       if (!user || !user.id) {
@@ -33,27 +33,27 @@ const Performance = () => {
         setLoading(false);
       }
     };
-
+    
     fetchReviews();
   }, [user]);
-
+  
   const renderStars = (rating) => {
     const totalStars = 5;
     return (
       <div className="flex items-center">
         {[...Array(totalStars)].map((_, index) => (
-          <FaStar
+        <FaStar 
             key={index}
             className={index < rating ? 'text-yellow-400' : 'text-gray-300'}
-          />
+        />
         ))}
         <span className="ml-2 text-sm font-medium text-gray-600">({rating}/{totalStars})</span>
       </div>
     );
   };
-
+    
   if (loading) {
-    return (
+  return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
@@ -74,11 +74,11 @@ const Performance = () => {
         <FaStar className="mx-auto text-4xl text-gray-400 mb-3" />
         <h3 className="text-lg font-medium text-gray-700">No Performance Reviews Found</h3>
         <p className="text-gray-500 mt-1">Your performance reviews will appear here once submitted by HR.</p>
-      </div>
+        </div>
     );
   }
-
-  return (
+                  
+                  return (
     <div className="container mx-auto px-4 py-6">
       <h1 className="text-2xl font-bold mb-6">My Performance Reviews</h1>
       <div className="space-y-6">
@@ -92,18 +92,18 @@ const Performance = () => {
                 <p className="text-sm text-gray-500">
                   Reviewed by: {review.ratedBy?.name || 'HR'}
                 </p>
-              </div>
+                        </div>
               <div className="mt-1">
                 {renderStars(review.rating)}
-              </div>
+      </div>
             </div>
-
+            
             <div className="space-y-4">
               {review.feedback && (
                 <div>
                   <h3 className="text-md font-semibold text-gray-700 flex items-center mb-1">
                     <FaComments className="mr-2 text-blue-500" /> Overall Feedback
-                  </h3>
+                </h3>
                   <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded">{review.feedback}</p>
                 </div>
               )}
@@ -121,8 +121,8 @@ const Performance = () => {
                     <FaRegThumbsDown className="mr-2 text-red-500" /> Areas for Improvement
                   </h3>
                   <p className="text-gray-600 text-sm bg-red-50 p-3 rounded">{review.areasForImprovement}</p>
-                </div>
-              )}
+                  </div>
+                )}
               {review.goals && (
                 <div>
                   <h3 className="text-md font-semibold text-gray-700 flex items-center mb-1">
@@ -134,7 +134,7 @@ const Performance = () => {
             </div>
           </div>
         ))}
-      </div>
+        </div>
     </div>
   );
 };

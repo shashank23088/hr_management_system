@@ -9,7 +9,7 @@
     "client": "cd client && npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "init-db": "node server/scripts/initDB.js",
-    "clear-db": "node server/scripts/clearDB.js"
+    "clear-db": "node server/scripts/clear-db.js"
   },
   "author": "",
   "license": "ISC",

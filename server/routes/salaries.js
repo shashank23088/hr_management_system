@@ -2,10 +2,11 @@ const express = require('express')
 const router = express.Router()
 const Salary = require('../models/Salary')
 const Employee = require('../models/Employee')
+const mongoose = require('mongoose')
 const { auth } = require('../middleware/auth')
 
 // @route   GET api/salaries
-// @desc    Get all salary records
+// @desc    Get consolidated salary overview for all employees
 // @access  Private (HR Only)
 router.get('/', auth, async (req, res) => {
   try {
@@ -13,13 +14,60 @@ router.get('/', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const salaries = await Salary.find()
-      .sort({ date: -1 })
-      .populate('employee', 'name email position');
+    // --- Restore Full Aggregation Pipeline with Explicit Lookup --- 
+    const salaryOverview = await Employee.aggregate([
+      {
+        $match: { status: 'active' } // Optional: Only show active employees
+      },
+      {
+        $lookup: {
+          from: 'salaries', 
+          let: { employeeId: "$_id" }, // Define variable for Employee ID
+          pipeline: [
+            { $match:
+              { $expr:
+                { $eq: [ "$employee", "$$employeeId" ] } // Match Salary.employee with the variable
+              }
+            }
+          ],
+          as: 'salaryRecords'
+        }
+      },
+      {
+        $addFields: {
+          latestSalaryRecord: {
+            $first: {
+              $sortArray: { input: "$salaryRecords", sortBy: { date: -1 } }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          position: 1,
+          currentAmount: { $ifNull: ["$latestSalaryRecord.amount", "$salary"] }, 
+          currentRaise: { $ifNull: ["$latestSalaryRecord.raise", 0] },
+          currentRaiseReason: { $ifNull: ["$latestSalaryRecord.raiseReason", null] },
+          latestSalaryDate: { $ifNull: ["$latestSalaryRecord.date", "$joiningDate"] }, 
+          salaryRecordId: { $ifNull: ["$latestSalaryRecord._id", null] } 
+        }
+      },
+      {
+          $sort: { name: 1 } 
+      }
+    ]);
+    // --- End Restore Full Aggregation --- 
     
-    res.json(salaries);
+    // Optional: Keep logging for one more check
+    console.log("GET /api/salaries - Final Aggregation Result:", JSON.stringify(salaryOverview, null, 2));
+
+    res.json(salaryOverview);
+
   } catch (err) {
-    console.error('Error fetching salaries:', err.message);
+    console.error('Error fetching consolidated salary overview:', err);
     res.status(500).send('Server Error');
   }
 })

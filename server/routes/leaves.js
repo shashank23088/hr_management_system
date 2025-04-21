@@ -36,16 +36,16 @@ router.get('/employee/:employeeId', auth, async (req, res) => {
     }
 
     console.log('Fetching leaves for employee:', requestedId);
-    
+
     const leaves = await Leave.find({ 
       $or: [
         { employee: requestedId },
         { 'employee._id': requestedId }
       ]
     })
-    .populate('employee', 'name email')
-    .populate('approvedBy', 'name email')
-    .populate('comments.user', 'name email')
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
+      .populate('comments.user', 'name email')
     .sort({ createdAt: -1 });
 
     console.log('Found leaves:', leaves.length);
@@ -128,8 +128,8 @@ router.put('/:id/status', [auth, isHR], async (req, res) => {
 
     // Re-fetch with population
     const populatedLeave = await Leave.findById(savedLeave._id)
-        .populate('employee', 'name email')
-        .populate('approvedBy', 'name email')
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
         .populate('comments.user', 'name email');
 
     res.json(populatedLeave); // Send populated document
@@ -163,8 +163,8 @@ router.post('/:id/comments', auth, async (req, res) => {
 
     // Re-fetch with population
     const populatedLeave = await Leave.findById(savedLeave._id)
-        .populate('employee', 'name email')
-        .populate('approvedBy', 'name email')
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
         .populate('comments.user', 'name email');
 
     res.json(populatedLeave); // Send populated document
@@ -199,8 +199,8 @@ router.delete('/:id/comments/:commentId', auth, async (req, res) => {
 
     // Re-fetch with population
     const populatedLeave = await Leave.findById(savedLeave._id)
-        .populate('employee', 'name email')
-        .populate('approvedBy', 'name email')
+      .populate('employee', 'name email')
+      .populate('approvedBy', 'name email')
         .populate('comments.user', 'name email');
 
     res.json(populatedLeave); // Send populated document

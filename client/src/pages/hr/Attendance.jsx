@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import api from '../../utils/axios';
-import { FaCalendarCheck, FaUserClock, FaFilter, FaDownload } from 'react-icons/fa';
+import { FaCalendarCheck, FaUserClock, FaFilter, FaDownload, FaTrash, FaEdit } from 'react-icons/fa';
 
 const Attendance = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
@@ -13,6 +13,8 @@ const Attendance = () => {
   const [selectedEmployee, setSelectedEmployee] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState(null);
   const [newAttendance, setNewAttendance] = useState({
     employee: '',
     date: new Date().toISOString().split('T')[0],
@@ -78,6 +80,22 @@ const Attendance = () => {
     return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
   
+  // Helper function to format work hours as "X hours Y minutes"
+  const formatWorkHours = (hours) => {
+    if (!hours && hours !== 0) return 'N/A';
+    
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    
+    if (wholeHours === 0) {
+      return `${minutes} minutes`;
+    } else if (minutes === 0) {
+      return `${wholeHours} ${wholeHours === 1 ? 'hour' : 'hours'}`;
+    } else {
+      return `${wholeHours} ${wholeHours === 1 ? 'hour' : 'hours'} ${minutes} minutes`;
+    }
+  };
+  
   // Get status badge color
   const getStatusColor = (status) => {
     switch(status) {
@@ -107,7 +125,7 @@ const Attendance = () => {
           const checkOutTime = new Date(`2000-01-01T${updated.checkOut}`);
           if (checkOutTime > checkInTime) {
             const diffMs = checkOutTime - checkInTime;
-            const diffHrs = Math.round((diffMs / 3600000) * 10) / 10;
+            const diffHrs = Math.round((diffMs / 3600000) * 100) / 100;
             updated.workHours = diffHrs;
           }
         }
@@ -145,6 +163,37 @@ const Attendance = () => {
     }
   };
   
+  // Handle delete confirmation
+  const handleDeleteClick = (record) => {
+    setRecordToDelete(record);
+    setShowDeleteModal(true);
+  };
+
+  // Handle delete attendance record
+  const handleDeleteConfirm = async () => {
+    if (!recordToDelete) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await api.delete(`/api/attendance/${recordToDelete._id}`);
+      
+      // Remove the deleted record from state
+      setAttendanceRecords(prevRecords => 
+        prevRecords.filter(record => record._id !== recordToDelete._id)
+      );
+      
+      setShowDeleteModal(false);
+      setRecordToDelete(null);
+      setLoading(false);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete attendance record');
+      setLoading(false);
+      console.error('Error deleting attendance record:', err);
+    }
+  };
+  
   // Generate month options
   const months = [
     { value: 1, label: 'January' },
@@ -178,7 +227,7 @@ const Attendance = () => {
         record.status,
         formatTime(record.checkIn),
         formatTime(record.checkOut),
-        record.workHours || 'N/A'
+        formatWorkHours(record.workHours)
       ].join(',');
     });
     
@@ -366,16 +415,17 @@ const Attendance = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check In</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check Out</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours Worked</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-4 text-center">Loading...</td>
+                  <td colSpan="7" className="px-6 py-4 text-center">Loading...</td>
                 </tr>
               ) : attendanceRecords.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-4 text-center">No attendance records found</td>
+                  <td colSpan="7" className="px-6 py-4 text-center">No attendance records found</td>
                 </tr>
               ) : (
                 attendanceRecords.map((record) => {
@@ -393,7 +443,16 @@ const Attendance = () => {
                       <td className="px-6 py-4 whitespace-nowrap">{formatTime(record.checkIn)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{formatTime(record.checkOut)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {record.workHours ? `${record.workHours} hours` : 'N/A'}
+                        {formatWorkHours(record.workHours)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button 
+                          onClick={() => handleDeleteClick(record)} 
+                          className="text-red-600 hover:text-red-900 mr-3"
+                          title="Delete record"
+                        >
+                          <FaTrash />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -518,6 +577,49 @@ const Attendance = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-semibold mb-4">Confirm Delete</h2>
+            
+            <p className="mb-4">
+              Are you sure you want to delete the attendance record for{" "}
+              <span className="font-medium">{recordToDelete?.employee?.name || 'this employee'}</span> on{" "}
+              <span className="font-medium">{recordToDelete ? formatDate(recordToDelete.date) : ''}</span>?
+            </p>
+            
+            {error && (
+              <div className="text-red-500 text-sm mb-4">
+                {error}
+              </div>
+            )}
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setRecordToDelete(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                disabled={loading}
+              >
+                {loading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}
