@@ -127,24 +127,6 @@ const Tasks = () => {
     }
   };
 
-  const handleDeleteComment = async (commentId) => {
-    try {
-      const response = await api.delete(`/api/tasks/${selectedTask._id}/comments/${commentId}`);
-      
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task._id === selectedTask._id ? response.data : task
-        )
-      );
-      
-      setSelectedTask(response.data);
-      toast.success('Comment deleted successfully');
-    } catch (err) {
-      console.error('Failed to delete comment:', err.response || err);
-      toast.error(err.response?.data?.message || 'Failed to delete comment');
-    }
-  };
-  
   const filteredTasks = tasks.filter(task => {
     if (filter === 'all') return true;
     return task.status === filter;
@@ -154,7 +136,7 @@ const Tasks = () => {
     switch (status) {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress':
+      case 'in-progress':
         return 'bg-blue-100 text-blue-800';
       case 'completed':
         return 'bg-green-100 text-green-800';
@@ -213,7 +195,7 @@ const Tasks = () => {
           >
             <option value="all">All Tasks</option>
             <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
+            <option value="in-progress">In Progress</option>
             <option value="completed">Completed</option>
           </select>
         </div>
@@ -331,25 +313,14 @@ const Tasks = () => {
                 {selectedTask?.comments?.length > 0 ? (
                   selectedTask.comments.map((comment) => (
                     <div key={comment._id} className="bg-gray-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-sm text-gray-600">
-                            By: {comment.user?.name || comment.user?.email || 'Unknown User'}
-                          </p>
-                          <p className="text-sm text-gray-400">
-                            {new Date(comment.createdAt).toLocaleString()}
-                          </p>
-                          <p className="mt-2">{comment.text}</p>
-                        </div>
-                        {comment.user?._id === user.id && (
-                          <button
-                            onClick={() => handleDeleteComment(comment._id)}
-                            className="text-red-500 hover:text-red-700"
-                            title="Delete Comment"
-                          >
-                            <FaTrash />
-                          </button>
-                        )}
+                      <div>
+                        <p className="text-sm text-gray-600">
+                          By: {comment.user?.name || comment.user?.email || 'Unknown User'}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          {new Date(comment.createdAt).toLocaleString()}
+                        </p>
+                        <p className="mt-2">{comment.text}</p>
                       </div>
                     </div>
                   ))

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import api from '../../utils/axios';
-import { FaCalendarCheck, FaUserClock, FaFilter, FaDownload, FaTrash, FaEdit } from 'react-icons/fa';
+import { FaCalendarCheck, FaUserClock, FaFilter, FaDownload, FaTrash, FaEdit, FaHourglassHalf } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
 const Attendance = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
@@ -18,11 +19,11 @@ const Attendance = () => {
   const [newAttendance, setNewAttendance] = useState({
     employee: '',
     date: new Date().toISOString().split('T')[0],
-    status: 'Present',
     checkIn: '',
     checkOut: '',
     workHours: 0
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { user } = useSelector(state => state.auth);
   
@@ -138,28 +139,22 @@ const Attendance = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     try {
-      setError(null);
-      
-      await api.post('/api/attendance', newAttendance);
-      
-      // Reset form and close modal
-      setNewAttendance({
-        employee: '',
-        date: new Date().toISOString().split('T')[0],
-        status: 'Present',
-        checkIn: '',
-        checkOut: '',
-        workHours: 0
+      setIsSubmitting(true);
+      const response = await api.post('/api/attendance', {
+        employee: newAttendance.employee,
+        date: newAttendance.date,
+        checkIn: newAttendance.checkIn,
+        checkOut: newAttendance.checkOut
       });
-      setShowModal(false);
       
-      // Refresh attendance records
-      fetchAttendanceRecords();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create attendance record');
-      console.error('Error creating attendance:', err);
+      setAttendanceRecords([...attendanceRecords, response.data]);
+      handleClose();
+      toast.success('Attendance record added successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error adding attendance record');
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -347,7 +342,7 @@ const Attendance = () => {
       </div>
       
       {/* Attendance Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-white p-6 rounded-lg shadow-md">
           <div className="flex justify-between items-start">
             <div>
@@ -398,6 +393,20 @@ const Attendance = () => {
             </div>
             <div className="p-3 bg-orange-100 rounded-full">
               <FaCalendarCheck className="text-orange-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm text-gray-500">Half-day</p>
+              <p className="text-2xl font-bold">
+                {attendanceRecords.filter(record => record.status === 'Half-day').length}
+              </p>
+            </div>
+            <div className="p-3 bg-yellow-100 rounded-full">
+              <FaHourglassHalf className="text-yellow-600" />
             </div>
           </div>
         </div>
@@ -508,25 +517,6 @@ const Attendance = () => {
                 </div>
                 
                 <div>
-                  <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
-                  <select
-                    id="status"
-                    name="status"
-                    value={newAttendance.status}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full rounded-md border border-gray-300 p-2"
-                  >
-                    <option value="Present">Present</option>
-                    <option value="Absent">Absent</option>
-                    <option value="Late">Late</option>
-                    <option value="Half-day">Half-day</option>
-                  </select>
-                </div>
-                
-                <div>
                   <label htmlFor="checkIn" className="block text-sm font-medium text-gray-700 mb-1">
                     Check In Time
                   </label>
@@ -536,6 +526,7 @@ const Attendance = () => {
                     name="checkIn"
                     value={newAttendance.checkIn}
                     onChange={handleInputChange}
+                    required
                     className="w-full rounded-md border border-gray-300 p-2"
                   />
                 </div>
@@ -550,6 +541,7 @@ const Attendance = () => {
                     name="checkOut"
                     value={newAttendance.checkOut}
                     onChange={handleInputChange}
+                    required
                     className="w-full rounded-md border border-gray-300 p-2"
                   />
                 </div>

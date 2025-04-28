@@ -92,7 +92,7 @@ router.get('/employee/:employeeId', auth, async (req, res) => {
 // @access  Private (HR only)
 router.post('/', auth, isHR, async (req, res) => {
   try {
-    const { employee, date, status, checkIn, checkOut } = req.body;
+    const { employee, date, checkIn, checkOut } = req.body;
     
     // Format the date to remove time component
     const formattedDate = new Date(date);
@@ -108,6 +108,7 @@ router.post('/', auth, isHR, async (req, res) => {
       return res.status(400).json({ message: 'Attendance record already exists for this date' });
     }
     
+    // Calculate work hours
     let workHours = 0;
     if (checkIn && checkOut) {
       const checkInTime = new Date(`2000-01-01T${checkIn}`);
@@ -116,6 +117,29 @@ router.post('/', auth, isHR, async (req, res) => {
         const diffMs = checkOutTime - checkInTime;
         workHours = Math.round((diffMs / 3600000) * 100) / 100; // Round to 2 decimal places
       }
+    }
+
+    // Calculate status based on check-in time
+    const checkInDateTime = new Date(`2000-01-01T${checkIn}`);
+    const hour = checkInDateTime.getHours();
+    const minutes = checkInDateTime.getMinutes();
+    const totalMinutes = hour * 60 + minutes;
+    
+    // Define time thresholds
+    const startTime = 9 * 60; // 09:00 in minutes
+    const lateThreshold = 10 * 60; // 10:00 in minutes
+    
+    // Determine status based on check-in time
+    let status;
+    if (totalMinutes < startTime) {
+      // Before 09:00 - Present
+      status = 'Present';
+    } else if (totalMinutes < lateThreshold) {
+      // Between 09:00 and 10:00 - Late
+      status = 'Late';
+    } else {
+      // After 10:00 - Half-day
+      status = 'Half-day';
     }
     
     const attendanceRecord = new Attendance({
@@ -179,13 +203,24 @@ router.post('/check-in', auth, async (req, res) => {
     // Set check-in time
     attendanceRecord.checkIn = now;
     
-    // Determine status based on time of day
+    // Get current hour and minutes for precise time comparison
     const hour = now.getHours();
-    if (hour >= 9 && hour < 10) {
-      attendanceRecord.status = 'Late';
-    } else if (hour < 9) {
+    const minutes = now.getMinutes();
+    const totalMinutes = hour * 60 + minutes;
+    
+    // Define time thresholds
+    const startTime = 9 * 60; // 09:00 in minutes
+    const lateThreshold = 10 * 60; // 10:00 in minutes
+    
+    // Determine status based on check-in time
+    if (totalMinutes < startTime) {
+      // Before 09:00 - Present
       attendanceRecord.status = 'Present';
+    } else if (totalMinutes < lateThreshold) {
+      // Between 09:00 and 10:00 - Late
+      attendanceRecord.status = 'Late';
     } else {
+      // After 10:00 - Half-day
       attendanceRecord.status = 'Half-day';
     }
     
@@ -195,8 +230,16 @@ router.post('/check-in', auth, async (req, res) => {
     const populatedRecord = await Attendance.findById(attendanceRecord._id)
       .populate('employee', 'name email department position');
     
+    // Prepare status message
+    let statusMessage = 'Checked in successfully';
+    if (attendanceRecord.status === 'Late') {
+      statusMessage = 'Checked in late. Please try to arrive before 09:00';
+    } else if (attendanceRecord.status === 'Half-day') {
+      statusMessage = 'Checked in as half-day due to late arrival after 10:00';
+    }
+    
     res.status(200).json({ 
-      message: 'Checked in successfully', 
+      message: statusMessage,
       time: now,
       status: attendanceRecord.status,
       record: populatedRecord

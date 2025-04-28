@@ -80,61 +80,83 @@ const Performance = () => {
                   
                   return (
     <div className="container mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold mb-6">My Performance Reviews</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">My Performance Reviews</h1>
       <div className="space-y-6">
         {reviews.map((review) => (
-          <div key={review._id} className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
-            <div className="flex justify-between items-start mb-4">
-              <div>
+          <div key={review._id} className="bg-white shadow-lg rounded-xl p-6 border border-gray-200">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
+              <div className="space-y-1">
                 <h2 className="text-lg font-semibold text-gray-800">
-                  Review Date: {new Date(review.createdAt).toLocaleDateString()}
+                  Task: {review.task?.title || 'N/A'}
                 </h2>
-                <p className="text-sm text-gray-500">
-                  Reviewed by: {review.ratedBy?.name || 'HR'}
+                <p className="text-sm text-gray-600">
+                  Team: {review.team?.name || 'N/A'}
                 </p>
-                        </div>
-              <div className="mt-1">
+                <p className="text-sm text-gray-500">
+                  Reviewed by: {review.ratedBy?.name || 'HR'} • {new Date(review.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex items-center space-x-3">
                 {renderStars(review.rating)}
-      </div>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                  ${review.rating >= 4 ? 'bg-green-100 text-green-800' :
+                    review.rating >= 3 ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'}`}>
+                  {review.rating}/5
+                </span>
+              </div>
             </div>
             
-            <div className="space-y-4">
-              {review.feedback && (
-                <div>
-                  <h3 className="text-md font-semibold text-gray-700 flex items-center mb-1">
-                    <FaComments className="mr-2 text-blue-500" /> Overall Feedback
-                </h3>
-                  <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded">{review.feedback}</p>
-                </div>
-              )}
-              {review.strengths && (
-                <div>
-                  <h3 className="text-md font-semibold text-gray-700 flex items-center mb-1">
-                    <FaRegThumbsUp className="mr-2 text-green-500" /> Strengths
-                  </h3>
-                  <p className="text-gray-600 text-sm bg-green-50 p-3 rounded">{review.strengths}</p>
-                </div>
-              )}
-              {review.areasForImprovement && (
-                <div>
-                  <h3 className="text-md font-semibold text-gray-700 flex items-center mb-1">
-                    <FaRegThumbsDown className="mr-2 text-red-500" /> Areas for Improvement
-                  </h3>
-                  <p className="text-gray-600 text-sm bg-red-50 p-3 rounded">{review.areasForImprovement}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                {review.feedback && (
+                  <div>
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center mb-2">
+                      <FaComments className="mr-2 text-blue-500" /> Overall Feedback
+                    </h3>
+                    <div className="bg-blue-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+                      <p className="text-gray-600 text-sm">{review.feedback}</p>
+                    </div>
                   </div>
                 )}
-              {review.goals && (
-                <div>
-                  <h3 className="text-md font-semibold text-gray-700 flex items-center mb-1">
-                    <FaBullseye className="mr-2 text-purple-500" /> Goals
-                  </h3>
-                  <p className="text-gray-600 text-sm bg-purple-50 p-3 rounded">{review.goals}</p>
-                </div>
-              )}
+                {review.strengths && (
+                  <div>
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center mb-2">
+                      <FaRegThumbsUp className="mr-2 text-green-500" /> Strengths
+                    </h3>
+                    <div className="bg-green-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+                      <p className="text-gray-600 text-sm">{review.strengths}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="space-y-4">
+                {review.areasForImprovement && (
+                  <div>
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center mb-2">
+                      <FaRegThumbsDown className="mr-2 text-red-500" /> Areas for Improvement
+                    </h3>
+                    <div className="bg-red-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+                      <p className="text-gray-600 text-sm">{review.areasForImprovement}</p>
+                    </div>
+                  </div>
+                )}
+                {review.goals && (
+                  <div>
+                    <h3 className="text-md font-semibold text-gray-700 flex items-center mb-2">
+                      <FaBullseye className="mr-2 text-purple-500" /> Goals
+                    </h3>
+                    <div className="bg-purple-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+                      <p className="text-gray-600 text-sm">{review.goals}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ))}
-        </div>
+      </div>
     </div>
   );
 };

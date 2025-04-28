@@ -15,14 +15,14 @@ router.post('/hr/login', async (req, res) => {
     const hrUser = await User.findOne({ email, role: 'hr' }).select('+password');
     
     if (!hrUser) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Email not found or not registered as HR' });
     }
 
     // Check password
     const isMatch = await bcrypt.compare(password, hrUser.password);
     
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Incorrect password' });
     }
 
     // Generate token
@@ -54,19 +54,19 @@ router.post('/employee/login', async (req, res) => {
     const user = await User.findOne({ email, role: 'employee' }).select('+password');
     
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Email not found or not registered as employee' });
     }
     
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Incorrect password' });
     }
 
     const employee = await Employee.findOne({ user: user._id });
     if (!employee) {
-      return res.status(401).json({ message: 'Employee not found' });
+      return res.status(401).json({ message: 'Employee record not found' });
     }
 
     const token = jwt.sign(

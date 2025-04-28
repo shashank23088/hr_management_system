@@ -339,12 +339,14 @@ const Leaves = () => {
               <div className="max-h-60 overflow-y-auto space-y-2">
                 {selectedLeave.comments?.map((comment) => (
                   <div key={comment._id} className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm font-medium text-gray-900">
-                      {comment.user?.name || comment.user?.email || 'Unknown User'}
-                    </div>
-                    <div className="text-sm text-gray-600 mt-1">{comment.text}</div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {new Date(comment.createdAt).toLocaleString()}
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {comment.user?.name || comment.user?.email || 'Unknown User'}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1">{comment.text}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(comment.createdAt).toLocaleString()}
+                      </p>
                     </div>
                   </div>
                 ))}

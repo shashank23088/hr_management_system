@@ -125,6 +125,15 @@ router.post('/', auth, async (req, res) => {
     });
 
     const savedSalary = await salary.save();
+
+    // Update employee's base salary to reflect the total (amount + raise)
+    const totalSalary = Number(amount) + (Number(raise) || 0);
+    await Employee.findByIdAndUpdate(
+      employee,
+      { salary: totalSalary },
+      { new: true }
+    );
+
     const populatedSalary = await Salary.findById(savedSalary._id)
       .populate('employee', 'name email position');
 
@@ -151,12 +160,22 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Salary record not found' });
     }
 
+    // Update salary record
     salary.amount = amount || salary.amount;
     salary.date = date ? new Date(date) : salary.date;
     if (raise !== undefined) salary.raise = raise;
     if (raiseReason !== undefined) salary.raiseReason = raiseReason;
 
     await salary.save();
+
+    // Update employee's base salary to reflect the total (amount + raise)
+    const totalSalary = Number(salary.amount) + (Number(salary.raise) || 0);
+    await Employee.findByIdAndUpdate(
+      salary.employee,
+      { salary: totalSalary },
+      { new: true }
+    );
+
     const updatedSalary = await Salary.findById(salary._id)
       .populate('employee', 'name email position');
 
