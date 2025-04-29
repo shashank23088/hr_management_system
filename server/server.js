@@ -1,8 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+// Debug environment variables
+console.log('Environment Variables:');
+console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Not set');
+console.log('EMAIL_USER:', process.env.EMAIL_USER ? 'Set' : 'Not set');
+console.log('EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? 'Set' : 'Not set');
+
 const connectDB = require('./config/db');
-require('dotenv').config();
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -34,6 +41,15 @@ app.use('/api/leaves', leaveRoutes);
 app.use('/api/salaries', salaryRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/performance', performanceRoutes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  res.status(500).json({ 
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
 
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {

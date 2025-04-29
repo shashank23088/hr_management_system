@@ -38,6 +38,7 @@ const EmployeeDashboard = () => {
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/performance" element={<Performance />} />
+          <Route path="/teams" element={<Teams />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/" element={<Profile />} />
         </Routes>

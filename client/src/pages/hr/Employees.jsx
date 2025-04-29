@@ -19,9 +19,7 @@ const Employees = () => {
     email: '',
     position: '',
     department: '',
-    joiningDate: '',
-    salary: ''
-    // team: null, // Optional: Add team selection later if needed
+    joiningDate: ''
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -59,7 +57,7 @@ const Employees = () => {
       
       toast.success('Employee added successfully!')
       setShowAddModal(false) // Close modal
-      setNewEmployeeData({ name: '', email: '', position: '', department: '', joiningDate: '', salary: '' }) // Reset form
+      setNewEmployeeData({ name: '', email: '', position: '', department: '', joiningDate: '' }) // Reset form
       fetchEmployees() // Refresh the employee list
 
     } catch (err) {
@@ -81,8 +79,7 @@ const Employees = () => {
       email: employee.email,
       position: employee.position,
       department: employee.department,
-      joiningDate: formattedJoiningDate,
-      salary: employee.salary
+      joiningDate: formattedJoiningDate
     })
     setShowEditModal(true)
   }
@@ -98,11 +95,21 @@ const Employees = () => {
       }
 
       const response = await api.put(`/api/employees/${selectedEmployee._id}`, updatedData)
+      
+      // Update Redux store with the new data
       dispatch(updateEmployee(response.data))
+      
+      // Refresh the entire employee list to ensure consistency
+      fetchEmployees()
+      
+      // Show success message
       toast.success('Employee updated successfully!')
+      
+      // Reset form and close modal
       setShowEditModal(false)
       setSelectedEmployee(null)
-      setNewEmployeeData({ name: '', email: '', position: '', department: '', joiningDate: '', salary: '' })
+      setNewEmployeeData({ name: '', email: '', position: '', department: '', joiningDate: '' })
+      
     } catch (err) {
       const errorMsg = err.response?.data?.message || err.message || 'Failed to update employee'
       toast.error(`Error: ${errorMsg}`)
@@ -264,10 +271,6 @@ const Employees = () => {
                 <label htmlFor="joiningDate" className="block text-sm font-medium text-gray-700">Joining Date</label>
                 <input type="date" name="joiningDate" id="joiningDate" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" value={newEmployeeData.joiningDate} onChange={handleInputChange} />
               </div>
-              <div>
-                <label htmlFor="salary" className="block text-sm font-medium text-gray-700">Salary</label>
-                <input type="number" name="salary" id="salary" required min="0" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" value={newEmployeeData.salary} onChange={handleInputChange} />
-              </div>
               
               {/* Action Buttons */} 
               <div className="flex justify-end space-x-3 pt-4">
@@ -318,10 +321,6 @@ const Employees = () => {
                 <label htmlFor="joiningDate" className="block text-sm font-medium text-gray-700">Joining Date</label>
                 <input type="date" name="joiningDate" id="joiningDate" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" value={newEmployeeData.joiningDate} onChange={handleInputChange} />
               </div>
-              <div>
-                <label htmlFor="salary" className="block text-sm font-medium text-gray-700">Salary</label>
-                <input type="number" name="salary" id="salary" required min="0" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" value={newEmployeeData.salary} onChange={handleInputChange} />
-              </div>
               
               <div className="flex justify-end space-x-3 pt-4">
                 <button 
@@ -329,7 +328,7 @@ const Employees = () => {
                   onClick={() => {
                     setShowEditModal(false)
                     setSelectedEmployee(null)
-                    setNewEmployeeData({ name: '', email: '', position: '', department: '', joiningDate: '', salary: '' })
+                    setNewEmployeeData({ name: '', email: '', position: '', department: '', joiningDate: '' })
                   }}
                   disabled={isSubmitting}
                   className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded disabled:opacity-50"

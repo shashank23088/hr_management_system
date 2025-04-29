@@ -24,15 +24,24 @@ const Salary = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch the consolidated overview
-  const fetchSalaryOverview = async () => {
+  const fetchSalaryOverview = async (showErrors = true) => {
     setLoading(true);
     setError(null);
     try {
       const response = await api.get('/api/salaries');
-      setSalaryOverview(response.data);
+      if (response.data) {
+        setSalaryOverview(response.data);
+      } else {
+        throw new Error('No data received from server');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Error fetching salary overview');
-      toast.error(err.response?.data?.message || 'Error fetching salary overview');
+      console.error('Error fetching salary overview:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Error fetching salary overview';
+      setError(errorMessage);
+      // Only show toast if showErrors is true
+      if (showErrors) {
+        toast.error(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -50,7 +59,7 @@ const Salary = () => {
   };
 
   useEffect(() => {
-    fetchSalaryOverview();
+    fetchSalaryOverview(true); // Show errors on initial load
     fetchEmployees(); // Fetch employees for the modal
   }, []);
 
@@ -58,38 +67,119 @@ const Salary = () => {
   const handleAddOrEditSalary = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    const url = isEditing ? `/api/salaries/${currentSalaryRecord}` : '/api/salaries';
-    const method = isEditing ? 'put' : 'post';
 
     try {
-      await api[method](url, formData);
-      toast.success(`Salary record ${isEditing ? 'updated' : 'added'} successfully!`);
-      setShowModal(false);
-      fetchSalaryOverview(); // Refresh the main overview list
+      if (isEditing && !currentSalaryRecord) {
+        throw new Error('Invalid salary record ID');
+      }
+
+      // Validate numeric fields
+      const amount = parseFloat(formData.amount);
+      const raise = formData.raise ? parseFloat(formData.raise) : 0;
+
+      if (isNaN(amount) || amount < 0) {
+        throw new Error('Invalid amount value');
+      }
+
+      if (isNaN(raise) || raise < 0) {
+        throw new Error('Invalid raise value');
+      }
+
+      // Process form data
+      const processedFormData = {
+        ...formData,
+        amount,
+        raise,
+        date: new Date(formData.date).toISOString()
+      };
+
+      // Log the request data for debugging
+      console.log('Sending salary update request:', {
+        url: isEditing ? `/api/salaries/${currentSalaryRecord}` : '/api/salaries',
+        method: isEditing ? 'put' : 'post',
+        data: processedFormData
+      });
+
+      const response = await api[isEditing ? 'put' : 'post'](
+        isEditing ? `/api/salaries/${currentSalaryRecord}` : '/api/salaries',
+        processedFormData
+      );
+      
+      if (response.data) {
+        toast.success(`Salary record ${isEditing ? 'updated' : 'added'} successfully!`);
+        
+        // Reset form and modal state
+        setShowModal(false);
+        setFormData({ 
+          employee: '', 
+          amount: '', 
+          date: new Date().toISOString().split('T')[0], 
+          raise: '', 
+          raiseReason: '' 
+        });
+        setCurrentSalaryRecord(null);
+        setIsEditing(false);
+        
+        // Fetch fresh data to ensure we have the latest state
+        await fetchSalaryOverview(false);
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || `Failed to ${isEditing ? 'update' : 'add'} salary record`);
+      console.error('Salary update error:', {
+        error: err,
+        response: err.response?.data,
+        status: err.response?.status,
+        statusText: err.response?.statusText
+      });
+      
+      let errorMessage;
+      if (err.response?.data?.details) {
+        errorMessage = err.response.data.details;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = `Failed to ${isEditing ? 'update' : 'add'} salary record`;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleEditClick = (employeeData) => {
-    // If editing, we target the *latest salary record ID* if it exists
-    // If no salary record exists yet for this employee, we should ADD one, not edit.
     if (employeeData.salaryRecordId) {
-        setIsEditing(true);
-        setCurrentSalaryRecord(employeeData.salaryRecordId); // ID of the salary record
-        setFormData({
-          employee: employeeData._id, // Employee ID remains the same
-          amount: employeeData.currentAmount || '', // Use current amount
-          date: employeeData.latestSalaryDate ? new Date(employeeData.latestSalaryDate).toISOString().split('T')[0] : '', // Use latest date
-          raise: employeeData.currentRaise || '', // Use current raise
-          raiseReason: employeeData.currentRaiseReason || '' // Use current reason
-        });
-        setShowModal(true);
+      setIsEditing(true);
+      
+      // Clean and validate the salary ID
+      const salaryId = employeeData.salaryRecordId.toString().trim();
+      console.log('Editing salary record:', {
+        rawId: employeeData.salaryRecordId,
+        cleanedId: salaryId,
+        employeeData
+      });
+      
+      setCurrentSalaryRecord(salaryId);
+      
+      // Format numeric values
+      const formattedAmount = employeeData.currentAmount ? 
+        parseFloat(employeeData.currentAmount).toString() : '';
+      const formattedRaise = employeeData.currentRaise ? 
+        parseFloat(employeeData.currentRaise).toString() : '';
+      
+      setFormData({
+        employee: employeeData._id,
+        amount: formattedAmount,
+        date: employeeData.latestSalaryDate ? 
+          new Date(employeeData.latestSalaryDate).toISOString().split('T')[0] : 
+          new Date().toISOString().split('T')[0],
+        raise: formattedRaise,
+        raiseReason: employeeData.currentRaiseReason || ''
+      });
+      setShowModal(true);
     } else {
-        // If no salary record ID, trigger the 'Add Salary' flow for this employee
-        handleAddClick(employeeData._id); 
+      handleAddClick(employeeData._id);
     }
   };
 
@@ -171,36 +261,30 @@ const Salary = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {salaryOverview.map((employeeData) => ( 
-              <tr key={employeeData._id}> {/* Key is now Employee ID */}
+            {salaryOverview.map((employeeData) => (
+              <tr key={employeeData._id}>
                 <td className="px-6 py-4">
                   <div className="text-sm font-medium text-gray-900">{employeeData.name}</div>
                   <div className="text-xs text-gray-500">{employeeData.position || 'N/A'}</div>
                 </td>
                 <td className="px-6 py-4">
-                  {/* Display the calculated current amount */}
                   <div className="text-sm text-gray-900">{formatCurrency(employeeData.currentAmount)}</div>
                 </td>
                 <td className="px-6 py-4">
-                  {/* Display the latest raise info */}
                   {formatRaise(employeeData.currentRaise, employeeData.currentRaiseReason)}
                 </td>
                 <td className="px-6 py-4">
-                  {/* Display the effective date of the latest info */}
                   <div className="text-sm text-gray-900">{formatDate(employeeData.latestSalaryDate)}</div>
                 </td>
                 <td className="px-6 py-4 space-x-3 whitespace-nowrap">
-                  {/* Edit action should now potentially ADD a record if none exists, or edit latest */}
                   <button onClick={() => handleEditClick(employeeData)} className="text-blue-600 hover:text-blue-900">
                     <FaEdit title="Edit/Add Latest Record" className="inline" />
                   </button>
-                  {/* Always show delete button, pass Employee ID */}
                   <button onClick={() => handleDelete(employeeData._id)} className="text-red-600 hover:text-red-900">
                     <FaTrash title="Delete Employee Record" className="inline" />
                   </button>
                 </td>
-              </tr>
-            ))}
+              </tr>))}
           </tbody>
         </table>
       </div>
@@ -215,13 +299,13 @@ const Salary = () => {
                 <label className="block text-sm font-medium text-gray-700">Employee</label>
                 <select
                   name="employee"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   value={formData.employee}
                   onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
                   required
-                  disabled={isEditing} // Disable if editing, employee shouldn't change
+                  disabled={isEditing}
                 >
-                  <option value="" disabled>Select Employee</option>
+                  <option value="">Select Employee</option>
                   {employees.map(emp => (
                     <option key={emp._id} value={emp._id}>
                       {emp.name} ({emp.email})
@@ -229,31 +313,75 @@ const Salary = () => {
                   ))}
                 </select>
               </div>
-              {/* Rest of the form fields: amount, date, raise, raiseReason */} 
-              {/* ... (Amount) ... */}
               <div>
-                 <label htmlFor="amount" className="block text-sm font-medium text-gray-700">Base Amount ($)</label>
-                 <input id="amount" type="number" name="amount" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required min="0" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                <label htmlFor="amount" className="block text-sm font-medium text-gray-700">Base Amount ($)</label>
+                <input 
+                  id="amount" 
+                  type="number" 
+                  name="amount" 
+                  value={formData.amount} 
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })} 
+                  required 
+                  min="0" 
+                  step="0.01"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" 
+                />
               </div>
-              {/* ... (Date) ... */}
               <div>
-                 <label htmlFor="date" className="block text-sm font-medium text-gray-700">Effective Date</label>
-                 <input id="date" type="date" name="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                <label htmlFor="date" className="block text-sm font-medium text-gray-700">Effective Date</label>
+                <input 
+                  id="date" 
+                  type="date" 
+                  name="date" 
+                  value={formData.date} 
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })} 
+                  required 
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" 
+                />
               </div>
-              {/* ... (Raise Amount - Optional) ... */}
               <div>
-                <label htmlFor="raise" className="block text-sm font-medium text-gray-700">Raise Amount ($) <span className="text-xs text-gray-500">(optional)</span></label>
-                <input id="raise" type="number" name="raise" value={formData.raise} onChange={(e) => setFormData({ ...formData, raise: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="e.g., 5000" />
+                <label htmlFor="raise" className="block text-sm font-medium text-gray-700">
+                  Raise Amount ($) <span className="text-xs text-gray-500">(optional)</span>
+                </label>
+                <input 
+                  id="raise" 
+                  type="number" 
+                  name="raise" 
+                  value={formData.raise} 
+                  onChange={(e) => setFormData({ ...formData, raise: e.target.value })} 
+                  min="0" 
+                  step="0.01"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" 
+                />
               </div>
-              {/* ... (Raise Reason - Optional) ... */}
               <div>
-                <label htmlFor="raiseReason" className="block text-sm font-medium text-gray-700">Reason for Raise <span className="text-xs text-gray-500">(optional)</span></label>
-                <input id="raiseReason" type="text" name="raiseReason" value={formData.raiseReason} onChange={(e) => setFormData({ ...formData, raiseReason: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="e.g., Annual increase, Promotion" />
+                <label htmlFor="raiseReason" className="block text-sm font-medium text-gray-700">
+                  Reason for Raise <span className="text-xs text-gray-500">(optional)</span>
+                </label>
+                <input 
+                  id="raiseReason" 
+                  type="text" 
+                  name="raiseReason" 
+                  value={formData.raiseReason} 
+                  onChange={(e) => setFormData({ ...formData, raiseReason: e.target.value })} 
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" 
+                />
               </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button type="button" onClick={() => setShowModal(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded" disabled={isSubmitting}>Cancel</button>
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded disabled:opacity-50" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : (isEditing ? 'Update Record' : 'Add Record')}</button>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : isEditing ? 'Update' : 'Add'}
+                </button>
               </div>
             </form>
           </div>

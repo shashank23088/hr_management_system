@@ -2,9 +2,11 @@ import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { FaClock, FaCalendarAlt, FaHourglassHalf } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Attendance = () => {
-  const { user, loading: authLoading } = useContext(AuthContext);
+  const { user, loading: authLoading, token } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [todayStatus, setTodayStatus] = useState(null);
   const [attendanceHistory, setAttendanceHistory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -13,16 +15,20 @@ const Attendance = () => {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
 
+  // Check authentication
+  useEffect(() => {
+    if (!authLoading && !token) {
+      navigate('/login');
+    }
+  }, [authLoading, token, navigate]);
+
   // Fetch today's attendance status
   const fetchTodayStatus = async () => {
-    if (!user || !user.employeeId) return;
+    if (!user?.employeeId || !token) return;
     
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
-      // Get auth token from localStorage
-      const token = localStorage.getItem('token');
       
       const response = await axios.get(`/api/attendance/employee/${user.employeeId}`, {
         params: {
@@ -42,21 +48,18 @@ const Attendance = () => {
       setTodayStatus(todayRecord || null);
     } catch (error) {
       console.error('Error fetching today status:', error);
-      if (error.response?.status === 403) {
-        console.log('Permission denied. Check if user has correct employeeId:', user);
+      if (error.response?.status === 401) {
+        navigate('/login');
       }
     }
   };
 
   // Fetch attendance history
   const fetchAttendanceHistory = async () => {
-    if (!user || !user.employeeId) return;
+    if (!user?.employeeId || !token) return;
     
     try {
       setLoading(true);
-      
-      // Get auth token from localStorage
-      const token = localStorage.getItem('token');
       
       const response = await axios.get(`/api/attendance/employee/${user.employeeId}`, {
         params: {
@@ -68,22 +71,23 @@ const Attendance = () => {
         }
       });
       setAttendanceHistory(response.data);
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching attendance history:', error);
-      if (error.response?.status === 403) {
-        console.log('Permission denied. Check if user has correct employeeId:', user);
+      if (error.response?.status === 401) {
+        navigate('/login');
       }
+    } finally {
       setLoading(false);
     }
   };
 
+  // Fetch data when authentication is ready
   useEffect(() => {
-    if (user && user.employeeId) {
+    if (!authLoading && user?.employeeId && token) {
       fetchTodayStatus();
       fetchAttendanceHistory();
     }
-  }, [user, month, year]);
+  }, [authLoading, user, token, month, year]);
 
   // Handle check in
   const handleCheckIn = async () => {
@@ -212,31 +216,26 @@ const Attendance = () => {
     label: year.toString()
   }));
 
-  // Check if user data is loading or missing
+  // Render loading state or authentication required message
   if (authLoading) {
     return (
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Attendance</h1>
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-center items-center h-40">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-            <p className="ml-3 text-gray-600">Loading...</p>
-          </div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
       </div>
     );
   }
 
-  if (!user || !user.employeeId) {
+  if (!token) {
     return (
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Attendance</h1>
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-center py-8">
-            <p className="text-red-500 mb-2">Authentication required</p>
-            <p className="text-gray-600">Please log in to access your attendance records</p>
-          </div>
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <div className="text-red-500 mb-4">Authentication required</div>
+        <div className="text-gray-600">Please log in to access your attendance records</div>
+        <button
+          onClick={() => navigate('/login')}
+          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+        >
+          Go to Login
+        </button>
       </div>
     );
   }

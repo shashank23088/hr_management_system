@@ -109,40 +109,45 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const { employee, amount, date, raise, raiseReason } = req.body;
+    const { employee: employeeId, amount, date, raise, raiseReason } = req.body;
 
     // Basic validation
-    if (!employee || !amount || !date) {
+    if (!employeeId || !amount || !date) {
       return res.status(400).json({ message: 'Please provide employee, amount, and date' });
     }
 
+    // Get employee record
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    // Create new salary record
     const salary = new Salary({
-      employee,
+      employee: employeeId,
       amount,
       date: new Date(date),
-      raise,
-      raiseReason
+      raise: raise || 0,
+      raiseReason: raiseReason || ''
     });
 
     const savedSalary = await salary.save();
 
-    // Update employee's base salary to reflect the total (amount + raise)
-    const totalSalary = Number(amount) + (Number(raise) || 0);
-    await Employee.findByIdAndUpdate(
-      employee,
-      { salary: totalSalary },
-      { new: true }
-    );
+    // Update employee's base salary and recalculate total
+    employee.baseSalary = amount;
+    await employee.save();
+    await employee.updateTotalSalary();
 
+    // Return populated salary record
     const populatedSalary = await Salary.findById(savedSalary._id)
-      .populate('employee', 'name email position');
+      .populate('employee', 'name email position baseSalary totalSalary');
 
     res.json(populatedSalary);
   } catch (err) {
     console.error('Error creating salary:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ message: 'Failed to create salary record' });
   }
-})
+});
 
 // @route   PUT api/salaries/:id
 // @desc    Update a salary record
@@ -153,38 +158,96 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const { amount, date, raise, raiseReason } = req.body;
-    const salary = await Salary.findById(req.params.id);
+    const { amount: baseAmount, date, raise, raiseReason } = req.body;
+    
+    // Validate inputs
+    if (!baseAmount || !date) {
+      return res.status(400).json({ message: 'Base amount and date are required' });
+    }
 
+    // Log the incoming request for debugging
+    console.log('Updating salary record:', {
+      salaryId: req.params.id,
+      body: req.body
+    });
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.error('Invalid salary ID format:', req.params.id);
+      return res.status(400).json({ message: 'Invalid salary ID format' });
+    }
+
+    // Find the salary record
+    const salary = await Salary.findById(req.params.id);
     if (!salary) {
       return res.status(404).json({ message: 'Salary record not found' });
     }
 
-    // Update salary record
-    salary.amount = amount || salary.amount;
-    salary.date = date ? new Date(date) : salary.date;
-    if (raise !== undefined) salary.raise = raise;
-    if (raiseReason !== undefined) salary.raiseReason = raiseReason;
+    try {
+      // Update salary record with validated data
+      salary.amount = parseFloat(baseAmount);
+      salary.date = new Date(date);
+      salary.raise = raise ? parseFloat(raise) : 0;
+      salary.raiseReason = raiseReason || '';
 
-    await salary.save();
+      await salary.save();
 
-    // Update employee's base salary to reflect the total (amount + raise)
-    const totalSalary = Number(salary.amount) + (Number(salary.raise) || 0);
-    await Employee.findByIdAndUpdate(
-      salary.employee,
-      { salary: totalSalary },
-      { new: true }
-    );
+      // Get and update the employee record
+      const employee = await Employee.findById(salary.employee);
+      if (!employee) {
+        throw new Error('Employee not found');
+      }
 
-    const updatedSalary = await Salary.findById(salary._id)
-      .populate('employee', 'name email position');
+      // Update employee's base salary
+      employee.baseSalary = parseFloat(baseAmount);
 
-    res.json(updatedSalary);
+      // Calculate total salary including all raises
+      const allRaises = await Salary.find({ 
+        employee: employee._id,
+        raise: { $gt: 0 }
+      }).sort({ date: -1 });
+
+      const totalRaises = allRaises.reduce((sum, record) => sum + (record.raise || 0), 0);
+      employee.totalSalary = employee.baseSalary + totalRaises;
+
+      // Update last raise information if applicable
+      if (allRaises.length > 0) {
+        employee.lastRaise = {
+          amount: allRaises[0].raise,
+          reason: allRaises[0].raiseReason,
+          date: allRaises[0].date
+        };
+      }
+
+      await employee.save();
+      
+      // Return updated salary record with populated employee data
+      const updatedSalary = await Salary.findById(salary._id)
+        .populate('employee', 'name email position baseSalary totalSalary');
+
+      res.json(updatedSalary);
+    } catch (error) {
+      console.error('Update error:', {
+        error: error.message,
+        stack: error.stack,
+        salaryId: req.params.id,
+        employeeId: salary.employee
+      });
+      throw error;
+    }
   } catch (err) {
-    console.error('Error updating salary:', err.message);
-    res.status(500).send('Server Error');
+    console.error('Error updating salary:', {
+      error: err.message,
+      stack: err.stack,
+      params: req.params,
+      body: req.body
+    });
+    res.status(500).json({ 
+      message: 'Failed to update salary record',
+      details: err.message
+    });
   }
-})
+});
 
 // @route   DELETE api/salaries/:id
 // @desc    Delete a salary record
@@ -201,13 +264,23 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Salary record not found' });
     }
 
+    // Store employee ID before deleting salary record
+    const employeeId = salary.employee;
+
     await salary.deleteOne();
-    res.json({ message: 'Salary record deleted' });
+
+    // Update employee's total salary after deleting the record
+    const employee = await Employee.findById(employeeId);
+    if (employee) {
+      await employee.updateTotalSalary();
+    }
+
+    res.json({ message: 'Salary record removed' });
   } catch (err) {
     console.error('Error deleting salary:', err.message);
     res.status(500).send('Server Error');
   }
-})
+});
 
 // @route   POST api/salaries/bulk
 // @desc    Create or update multiple salary records

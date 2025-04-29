@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
 const Employee = require('../models/Employee');
 const { auth } = require('../middleware/auth');
+const { sendPasswordResetEmail, sendPasswordResetOTP } = require('../utils/email');
 
 // HR Login
 router.post('/hr/login', async (req, res) => {
@@ -91,20 +93,97 @@ router.post('/employee/login', async (req, res) => {
   }
 });
 
-// Forgot Password
+// @route   POST api/auth/forgot-password
+// @desc    Send password reset OTP
+// @access  Public
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
+    console.log('Attempting password reset for email:', email);
     
     const user = await User.findOne({ email });
     
     if (!user) {
+      console.log('User not found for email:', email);
       return res.status(404).json({ message: 'Email not found' });
     }
-    
-    res.json({ message: 'Password reset instructions sent to your email' });
+
+    // Generate OTP
+    console.log('Generating OTP for user');
+    const otp = user.generateOTP();
+
+    // Save the OTP and expiry
+    try {
+      await user.save();
+      console.log('OTP saved to user record');
+    } catch (saveError) {
+      console.error('Error saving OTP:', saveError);
+      return res.status(500).json({ message: 'Error saving OTP' });
+    }
+
+    try {
+      // Send email with OTP
+      console.log('Attempting to send OTP email');
+      await sendPasswordResetOTP(email, otp);
+      console.log('OTP email sent successfully');
+      res.json({ message: 'OTP sent to your email' });
+    } catch (emailError) {
+      console.error('Detailed email error:', emailError);
+      
+      // Reset OTP fields since email failed
+      user.resetOTP = undefined;
+      user.resetOTPExpire = undefined;
+      await user.save();
+      
+      return res.status(500).json({ 
+        message: 'Failed to send OTP',
+        error: emailError.message 
+      });
+    }
   } catch (err) {
     console.error('Forgot Password Error:', err);
+    res.status(500).json({ 
+      message: 'Server error',
+      error: err.message 
+    });
+  }
+});
+
+// @route   POST api/auth/verify-otp
+// @desc    Verify OTP and reset password
+// @access  Public
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    // Validate input
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'Please provide email, OTP and new password' });
+    }
+
+    // Find user with OTP fields
+    const user = await User.findOne({ email })
+      .select('+resetOTP +resetOTPExpire');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify OTP
+    const isValid = await user.verifyOTP(otp);
+    if (!isValid) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    // Set new password
+    user.password = newPassword;
+    user.resetOTP = undefined;
+    user.resetOTPExpire = undefined;
+    await user.save();
+
+    res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    console.error('Reset Password Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

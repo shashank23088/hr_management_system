@@ -24,7 +24,7 @@ router.get('/', auth, (req, res) => {
 // @desc    Create an employee, corresponding user, AND initial salary record
 // @access  Private/HR
 router.post('/', [auth, isHR], async (req, res) => {
-  const { name, email, position, team, department, joiningDate, salary } = req.body
+  const { name, email, position, team, department, joiningDate, baseSalary } = req.body
   const defaultPassword = process.env.DEFAULT_EMPLOYEE_PASSWORD || 'password123'
   
   let savedUser = null
@@ -37,12 +37,7 @@ router.post('/', [auth, isHR], async (req, res) => {
       return res.status(400).json({ message: 'User with this email already exists' })
     }
 
-    // --- Start Transaction (Conceptual) --- 
-    // In a production scenario, consider using MongoDB transactions here 
-    // to ensure all three creations (User, Employee, Salary) succeed or fail together.
-
     // 2. Create the User record
-    // Use a consistent salt for all default passwords
     const salt = await bcrypt.genSalt(10)
     const hashedPassword = await bcrypt.hash(defaultPassword, salt)
     const newUser = new User({
@@ -62,22 +57,21 @@ router.post('/', [auth, isHR], async (req, res) => {
       team,
       department,
       joiningDate,
-      salary
+      baseSalary,
+      totalSalary: baseSalary // Initially total salary equals base salary
     })
     savedEmployee = await newEmployee.save()
 
     // 4. Create the initial Salary record
     const initialSalary = new Salary({
       employee: savedEmployee._id,
-      amount: salary,
+      amount: baseSalary,
       date: joiningDate
     })
     const savedInitialSalary = await initialSalary.save()
     console.log(`POST /api/employees: Initial Salary record CREATED with ID: ${savedInitialSalary._id} for Employee ID: ${savedEmployee._id}`)
 
-    // --- End Transaction (Conceptual) --- 
-
-    // Populate the team name for the response (Employee data)
+    // Populate the team name for the response
     await savedEmployee.populate('team', 'name')
 
     res.status(201).json(savedEmployee)
@@ -91,28 +85,62 @@ router.post('/', [auth, isHR], async (req, res) => {
 // @route   PUT api/employees/:id
 // @desc    Update an employee
 // @access  Private
-router.put('/:id', auth, (req, res) => {
-  const { name, email, position, team } = req.body
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const { name, email, position, department, joiningDate, baseSalary } = req.body;
 
-  Employee.findById(req.params.id)
-    .then(employee => {
-      if (!employee) {
-        return res.status(404).json({ msg: 'Employee not found' })
-      }
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
 
-      employee.name = name || employee.name
-      employee.email = email || employee.email
-      employee.position = position || employee.position
-      employee.team = team || employee.team
+    // Update employee fields
+    if (name) employee.name = name;
+    if (email) employee.email = email;
+    if (position) employee.position = position;
+    if (department) employee.department = department;
+    if (joiningDate) employee.joiningDate = joiningDate;
+    
+    // Handle base salary update
+    if (baseSalary) {
+      // Calculate the difference between new and old base salary
+      const salaryDifference = baseSalary - employee.baseSalary;
+      
+      // Update base salary
+      employee.baseSalary = baseSalary;
+      
+      // Update total salary by adding the difference
+      employee.totalSalary = employee.totalSalary + salaryDifference;
 
-      return employee.save()
-    })
-    .then(employee => res.json(employee))
-    .catch(err => {
-      console.error(err.message)
-      res.status(500).send('Server Error')
-    })
-})
+      // Create a new salary record for the change
+      const newSalaryRecord = new Salary({
+        employee: employee._id,
+        amount: baseSalary,
+        date: new Date(),
+        raiseReason: 'Base salary update'
+      });
+      await newSalaryRecord.save();
+    }
+
+    // Save the updated employee
+    await employee.save();
+
+    // Fetch the updated employee with populated fields
+    const updatedEmployee = await Employee.findById(employee._id)
+      .populate('team', 'name')
+      .populate('user', 'email name role');
+
+    // Also update the associated user's name if it changed
+    if (name && employee.user) {
+      await User.findByIdAndUpdate(employee.user, { name });
+    }
+
+    res.json(updatedEmployee);
+  } catch (err) {
+    console.error('Error updating employee:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
 
 // @route   DELETE api/employees/:id
 // @desc    Delete an employee AND associated user and salary records
@@ -176,23 +204,37 @@ router.get('/me', auth, async (req, res) => {
 })
 
 // @route   GET api/employees/:id
-// @desc    Get employee by ID
+// @desc    Get employee by ID with latest salary info
 // @access  Private
 router.get('/:id', auth, async (req, res) => {
   try {
     const employee = await Employee.findById(req.params.id)
       .populate('team', 'name')
-    
+      .populate('user', 'email name role');
+
     if (!employee) {
-      return res.status(404).json({ message: 'Employee not found' })
+      return res.status(404).json({ message: 'Employee not found' });
     }
 
-    res.json(employee)
+    // Get the latest salary record
+    const latestSalary = await Salary.findOne({ employee: employee._id })
+      .sort({ date: -1 });
+
+    // Combine employee data with latest salary info
+    const employeeData = employee.toObject();
+    if (latestSalary) {
+      employeeData.currentSalary = latestSalary.amount;
+      employeeData.lastRaise = latestSalary.raise || 0;
+      employeeData.lastRaiseReason = latestSalary.raiseReason;
+      employeeData.lastSalaryUpdate = latestSalary.date;
+    }
+
+    res.json(employeeData);
   } catch (err) {
-    console.error('Error fetching employee:', err.message)
-    res.status(500).send('Server Error')
+    console.error('Error fetching employee:', err);
+    res.status(500).send('Server Error');
   }
-})
+});
 
 // @route   GET api/employees/user/:userId
 // @desc    Get employee by user ID

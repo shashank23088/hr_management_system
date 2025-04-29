@@ -27,8 +27,14 @@ const UserSchema = new mongoose.Schema({
     enum: ['employee', 'hr', 'admin'],
     default: 'employee'
   },
-  resetPasswordToken: String,
-  resetPasswordExpire: Date,
+  resetOTP: {
+    type: String,
+    select: false
+  },
+  resetOTPExpire: {
+    type: Date,
+    select: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -62,6 +68,28 @@ UserSchema.methods.getSignedJwtToken = function() {
 // Match user entered password to hashed password in database
 UserSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Generate OTP for password reset
+UserSchema.methods.generateOTP = function() {
+  // Generate 4 digit OTP
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  
+  // Hash OTP before saving to database
+  this.resetOTP = bcrypt.hashSync(otp, 10);
+  
+  // Set expire time - 15 minutes
+  this.resetOTPExpire = Date.now() + 15 * 60 * 1000;
+  
+  return otp;
+};
+
+// Verify OTP
+UserSchema.methods.verifyOTP = async function(enteredOTP) {
+  if (!this.resetOTP || !this.resetOTPExpire || Date.now() > this.resetOTPExpire) {
+    return false;
+  }
+  return await bcrypt.compare(enteredOTP, this.resetOTP);
 };
 
 module.exports = mongoose.model('User', UserSchema); 
